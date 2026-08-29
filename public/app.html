@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Laser Graffiti — Control</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #111; color: #ddd; font: 13px/1.5 -apple-system, system-ui, sans-serif; }
+  .wrap { display: grid; grid-template-columns: 1fr 340px; gap: 12px; padding: 12px; height: 100vh; box-sizing: border-box; }
+  .main { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .camwrap { position: relative; background: #000; border-radius: 6px; overflow: hidden; flex: 1; min-height: 0; }
+  #preview { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #projPreview { width: 100%; background: #000; border-radius: 6px; }
+  aside { display: flex; flex-direction: column; gap: 10px; overflow: auto; }
+  fieldset { border: 1px solid #333; border-radius: 6px; padding: 8px 10px; margin: 0; }
+  legend { color: #9ad; padding: 0 4px; font-weight: 600; }
+  label { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 3px 0; }
+  label span.v { color: #888; min-width: 3ch; text-align: right; font-variant-numeric: tabular-nums; }
+  input[type=range] { flex: 1; }
+  button { background: #2a2a2a; color: #eee; border: 1px solid #444; border-radius: 5px; padding: 5px 10px; cursor: pointer; }
+  button:hover { background: #333; }
+  button.primary { background: #2563eb; border-color: #3b82f6; }
+  button.on { background: #7c3aed; border-color: #a78bfa; }
+  .row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  select { background: #222; color: #eee; border: 1px solid #444; border-radius: 5px; padding: 4px; max-width: 100%; }
+  #status { color: #8f8; min-height: 1.5em; }
+  #log { font: 11px/1.4 ui-monospace, monospace; color: #999; max-height: 140px; overflow: auto; white-space: pre-wrap; }
+  .swatches { display: flex; gap: 4px; flex-wrap: wrap; }
+  .swatch { width: 22px; height: 22px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; }
+  .swatch.sel { border-color: #fff; }
+  .hint { color: #777; font-size: 12px; }
+  kbd { background: #222; border: 1px solid #444; border-radius: 3px; padding: 0 4px; }
+  .snap { display: flex; gap: 8px; margin-top: 8px; align-items: flex-start; }
+  .snap img { width: 96px; border-radius: 4px; }
+  .snap .meta { font-size: 11px; color: #aaa; }
+  .snap button { padding: 2px 6px; font-size: 11px; }
+  input[type=color] { width: 32px; height: 28px; padding: 0; border: 1px solid #444; border-radius: 5px; background: none; }
+  a.home { color: #9ad; text-decoration: none; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="main">
+    <div class="camwrap"><canvas id="preview"></canvas></div>
+    <div class="row"><div id="status" style="flex:1">Starting…</div><a class="home" href="/">← laser.consti.de</a></div>
+  </div>
+  <aside>
+    <fieldset>
+      <legend>1 · Camera</legend>
+      <select id="camSel"></select>
+      <div class="row" style="margin-top:6px">
+        <button id="startBtn" class="primary">Start camera</button>
+        <label style="margin:0"><input type="checkbox" id="showMask"> show detection mask</label>
+      </div>
+      <div id="camInfo" class="hint"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>2 · Projector</legend>
+      <div class="row"><button id="openProj" class="primary">Open projector window</button></div>
+      <div class="hint">Move it to the projector and press <kbd>F</kbd> there for fullscreen. <span id="projInfo"></span></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>3 · Calibration</legend>
+      <div class="row">
+        <button id="calBtn" class="primary">Calibrate projector</button>
+        <button id="laserCalBtn" class="primary">Calibrate laser</button>
+        <button id="calReset">Reset</button>
+      </div>
+      <div class="hint"><b>Projector:</b> flashes markers into the corners; drag the yellow corners afterwards to fine-tune.
+        <b>Laser:</b> wave the laser around inside the projection for 4 s — thresholds and dot size are learned from it. <span id="calInfo"></span></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>4 · Detection</legend>
+      <label>Laser color <select id="laserColor"><option value="g">green</option><option value="r">red</option></select></label>
+      <label>Min channel <input type="range" id="minG" min="60" max="255" value="150"><span class="v"></span></label>
+      <label>Dominance <input type="range" id="minDelta" min="0" max="200" value="45"><span class="v"></span></label>
+      <label>Min pixels <input type="range" id="minPixels" min="1" max="40" value="2"><span class="v"></span></label>
+      <label>Max pixels <input type="range" id="maxPixels" min="10" max="2000" value="400"><span class="v"></span></label>
+      <label>Smoothing <input type="range" id="smooth" min="0" max="90" value="35"><span class="v"></span></label>
+      <label>Tracking radius <input type="range" id="trackR" min="10" max="200" value="60"><span class="v"></span></label>
+      <label><input type="checkbox" id="satWhite"> also accept saturated white core</label>
+      <label><input type="checkbox" id="roiOnly" checked> only inside projection area</label>
+      <div class="hint">Reflections: the tracker keeps following the blob nearest to the previous position and prefers the brightest one; a new stroke only starts after the dot is seen in 2 consecutive frames.</div>
+    </fieldset>
+
+    <fieldset>
+      <legend>5 · Drawing</legend>
+      <div class="swatches" id="swatches"></div>
+      <label>Brush <select id="brush"></select></label>
+      <label>Brush size <input type="range" id="size" min="1" max="40" value="8"><span class="v"></span></label>
+      <label>Fade after (s, 0 = never) <input type="range" id="fadeSeconds" min="0" max="60" value="0"><span class="v"></span></label>
+      <label>Mirror <select id="symmetry"><option value="1">off</option><option value="2">×2</option><option value="4">×4</option><option value="6">×6</option><option value="8">×8</option></select></label>
+      <div class="row">
+        <button id="wetInk" data-toggle>wet ink</button>
+        <button id="spin3d" data-toggle>spin 3D</button>
+        <button id="sparkle" data-toggle>sparkle</button>
+        <button id="game" data-toggle>tic-tac-toe</button>
+        <button id="hotCorner" data-toggle>laser menu</button>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <button id="border" data-toggle>border</button>
+        <input type="color" id="borderColor" value="#ffffff" title="border color">
+        <label style="flex:1;margin:0">width <input type="range" id="borderWidth" min="1" max="40" value="6"><span class="v"></span></label>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <button id="undoBtn">Undo (z)</button>
+        <button id="clearBtn">Clear (c)</button>
+        <button id="menuBtn">Toggle menu (m)</button>
+      </div>
+      <div class="hint">Laser menu: hold the laser in the dashed ☰ circle (top-right of the projection) to open it; hover an item to select.</div>
+      <canvas id="projPreview"></canvas>
+    </fieldset>
+
+    <fieldset>
+      <legend>6 · Snapshots</legend>
+      <div class="row"><button id="snapBtn" class="primary">📸 Take snapshot (s)</button></div>
+      <div class="hint">Saves the camera photo and the drawing to this browser. Download the photo, the drawing, or the photo with the drawing overlaid.</div>
+      <div id="snapshots"></div>
+    </fieldset>
+
+    <fieldset><legend>Log</legend><div id="log"></div></fieldset>
+  </aside>
+</div>
+<video id="video" playsinline muted style="display:none"></video>
+<script type="module" src="app.js"></script>
+</body>
+</html>

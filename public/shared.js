@@ -8,7 +8,20 @@ export const SYMMETRIES = [1, 2, 4, 6, 8];
 export const DEFAULT_SETTINGS = {
   color: COLORS[0], brush: 'round', size: 8 /* per-mille of width */,
   fadeSeconds: 0, wetInk: false, spin3d: false, symmetry: 1, sparkle: false, hotCorner: true,
+  border: false, borderColor: '#ffffff', borderWidth: 6 /* px at 1080p */, game: false,
 };
+
+// ---------- tic-tac-toe board geometry (normalized projector coords) ----------
+export function boardGeometry(aspect = 16 / 9) {
+  const side = 0.78;                                  // fraction of height
+  const ch = side / 3, cw = ch / aspect;
+  return { x0: 0.5 - 1.5 * cw, y0: 0.5 - 1.5 * ch, cw, ch };
+}
+export function cellAt(p, aspect) {
+  const g = boardGeometry(aspect);
+  const c = Math.floor((p.x - g.x0) / g.cw), r = Math.floor((p.y - g.y0) / g.ch);
+  return c >= 0 && c < 3 && r >= 0 && r < 3 ? r * 3 + c : -1;
+}
 
 // ---------- homography ----------
 export function computeHomography(src, dst) {
@@ -55,7 +68,7 @@ export const MENU_DWELL_MS = 650, HOT_DWELL_MS = 500;
 
 export function menuLayout(aspect = 16 / 9) {
   const items = [];
-  const cw = 0.065, ch = cw * aspect * 0.8;  // roughly square cells in pixels
+  const cw = 0.06, ch = cw * aspect * 0.8;  // roughly square cells in pixels
   const x0 = 0.985 - 4 * cw - 3 * 0.01, gap = 0.01;
   let y = 0.06;
   const row = (list, kind, opts = {}) => {
@@ -68,9 +81,10 @@ export function menuLayout(aspect = 16 / 9) {
   };
   row(COLORS.map(c => ({ id: c, value: c, label: '', color: c })), 'color');
   row(BRUSHES.map(b => ({ id: b, value: b, label: b })), 'brush');
-  row([{ id: 'wetInk', label: 'wet ink' }, { id: 'spin3d', label: 'spin 3D' }, { id: 'fade', label: 'fade' }, { id: 'sparkle', label: 'sparkle' }], 'toggle');
-  row([{ id: 'symmetry', label: 'mirror' }, { id: 'size-', label: 'size −' }, { id: 'size+', label: 'size +' }, { id: 'undo', label: 'undo' }], 'action');
-  row([{ id: 'clear', label: 'clear' }, { id: 'close', label: 'close' }], 'action');
+  row([{ id: 'wetInk', label: 'wet ink' }, { id: 'spin3d', label: 'spin 3D' }, { id: 'fade', label: 'fade' }, { id: 'sparkle', label: 'sparkle' },
+       { id: 'border', label: 'border' }, { id: 'game', label: 'tic-tac-toe' }], 'toggle');
+  row([{ id: 'symmetry', label: 'mirror' }, { id: 'size-', label: 'size −' }, { id: 'size+', label: 'size +' }, { id: 'undo', label: 'undo' },
+       { id: 'snapshot', label: '📸 snapshot' }, { id: 'clear', label: 'clear' }, { id: 'close', label: 'close' }], 'action');
   const panel = { x: x0 - 0.02, y: 0.03, w: 0.985 - x0 + 0.03, h: y };
   return { items, panel };
 }
@@ -162,11 +176,12 @@ function polyline(ctx, P, n, from, width, color) {
 function dot(ctx, x, y, r, color) { ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); }
 
 /** Simple full render used by the control-window preview. */
-export function renderStrokes(ctx, w, h, strokes, { fadeSeconds = 0, now = 0 } = {}) {
-  ctx.globalAlpha = 1; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h);
+export function renderStrokes(ctx, w, h, strokes, { fadeSeconds = 0, now = 0, background = '#000', xf = null } = {}) {
+  ctx.globalAlpha = 1;
+  if (background) { ctx.fillStyle = background; ctx.fillRect(0, 0, w, h); }
   for (const s of strokes) {
     if (fadeSeconds > 0) { const a = 1 - (now - s.lastT) / 1000 / fadeSeconds; if (a <= 0) continue; ctx.globalAlpha = Math.min(1, a); }
-    drawStroke(ctx, w, h, s);
+    drawStroke(ctx, w, h, s, 0, xf);
   }
   ctx.globalAlpha = 1;
 }

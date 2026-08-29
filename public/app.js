@@ -1,5 +1,7 @@
 import { CHANNEL, COLORS, BRUSHES, SYMMETRIES, DEFAULT_SETTINGS, MENU_DWELL_MS, HOT_DWELL_MS,
-  computeHomography, applyHomography, invertHomography, renderStrokes, menuLayout, hitMenu, inHotCorner } from './shared.js';
+  computeHomography, applyHomography, invertHomography, renderStrokes, menuLayout, hitMenu, inHotCorner, cellAt } from './shared.js';
+import { Scene } from './scene.js';
+import { TicTacToe } from './game.js';
 
 const $ = id => document.getElementById(id);
 const bc = new BroadcastChannel(CHANNEL);
@@ -23,8 +25,10 @@ const state = {
   track: null,                 // {x,y,t} last accepted detection (proc pixels)
   pendingFrames: 0,            // consecutive frames a candidate was seen before a stroke starts
   menu: { open: false, hover: null, hoverSince: 0, progress: 0, hotSince: 0, hotProgress: 0, lastLaser: 0 },
+  game: new TicTacToe(), gameTimer: 0,
+  snapshots: [],
 };
-window.lg = state;
+window.lg = state; window.lgDebug = { emit: (x, y) => emitPoint(x, y), end: () => endStroke(), snapshot: () => takeSnapshot() };
 
 const log = (...a) => { const el = $('log'); el.textContent = `${new Date().toLocaleTimeString()} ${a.join(' ')}\n` + el.textContent; console.log(...a); };
 const status = s => $('status').textContent = s;
@@ -55,7 +59,9 @@ $('laserColor').addEventListener('change', e => localStorage.setItem('lg:laserCo
 // ---------- drawing settings (shared with projector) ----------
 try { Object.assign(state.settings, JSON.parse(localStorage.getItem('lg:settings') || '{}')); } catch {}
 function updateSettings(patch, { fromMenu = false } = {}) {
+  const gameChanged = 'game' in patch && patch.game !== state.settings.game;
   Object.assign(state.settings, patch);
+  if (gameChanged) startGame(patch.game);
   localStorage.setItem('lg:settings', JSON.stringify(state.settings));
   send({ t: 'settings', settings: state.settings });
   syncSettingsUI();
@@ -68,7 +74,9 @@ function syncSettingsUI() {
   $('size').value = s.size; $('size').nextElementSibling.textContent = s.size;
   $('fadeSeconds').value = s.fadeSeconds; $('fadeSeconds').nextElementSibling.textContent = s.fadeSeconds;
   $('symmetry').value = s.symmetry;
-  for (const id of ['wetInk', 'spin3d', 'sparkle', 'hotCorner']) $(id).classList.toggle('on', !!s[id]);
+  for (const id of ['wetInk', 'spin3d', 'sparkle', 'hotCorner', 'border', 'game']) $(id).classList.toggle('on', !!s[id]);
+  $('borderColor').value = s.borderColor;
+  $('borderWidth').value = s.borderWidth; $('borderWidth').nextElementSibling.textContent = s.borderWidth;
 }
 for (const c of COLORS) {
   const d = document.createElement('div');
@@ -81,7 +89,9 @@ $('brush').onchange = e => updateSettings({ brush: e.target.value });
 $('size').oninput = e => updateSettings({ size: Number(e.target.value) });
 $('fadeSeconds').oninput = e => updateSettings({ fadeSeconds: Number(e.target.value) });
 $('symmetry').onchange = e => updateSettings({ symmetry: Number(e.target.value) });
-for (const id of ['wetInk', 'spin3d', 'sparkle', 'hotCorner']) $(id).onclick = () => updateSettings({ [id]: !state.settings[id] });
+for (const id of ['wetInk', 'spin3d', 'sparkle', 'hotCorner', 'border', 'game']) $(id).onclick = () => updateSettings({ [id]: !state.settings[id] });
+$('borderColor').oninput = e => updateSettings({ borderColor: e.target.value, border: true });
+$('borderWidth').oninput = e => updateSettings({ borderWidth: Number(e.target.value) });
 syncSettingsUI();
 
 // ---------- camera ----------
@@ -128,7 +138,7 @@ $('openProj').onclick = async () => {
   window.open('projector.html', 'laser-projector', feat);
 };
 bc.onmessage = ({ data: m }) => {
-  if (m.t === 'proj:hello') { send({ t: 'sync', strokes: state.strokes, settings: state.settings }); log('projector window connected'); }
+  if (m.t === 'proj:hello') { send({ t: 'sync', strokes: state.strokes, settings: state.settings, game: state.game.state() }); log('projector window connected'); }
   if (m.t === 'proj:size') { state.projAspect = m.w / m.h; $('projInfo').textContent = `Projector canvas: ${m.w}×${m.h}`; }
 };
 send({ t: 'hello' });
@@ -144,6 +154,7 @@ addEventListener('keydown', e => {
   if (e.key === 'c') clearAll();
   if (e.key === 'z') undo();
   if (e.key === 'm') setMenuOpen(!state.menu.open);
+  if (e.key === 's') takeSnapshot();
 });
 
 function emitPoint(px, py) {
@@ -153,6 +164,7 @@ function emitPoint(px, py) {
   let newStroke = false;
   const s = state.settings;
   if (!state.current || gap > 200) {
+    endStroke();
     state.current = { id: ++state.strokeId, color: s.color, brush: s.brush, size: s.size / 1000, symmetry: s.symmetry, pts: [], lastT: now };
     state.strokes.push(state.current);
     state.smoothPt = { x: px, y: py };
@@ -168,6 +180,94 @@ function emitPoint(px, py) {
   const c = state.current;
   send({ t: 'pt', id: c.id, x: p.x, y: p.y, color: c.color, brush: c.brush, size: c.size, symmetry: c.symmetry, newStroke });
 }
+
+/** A stroke is finished (laser lifted). In game mode the stroke becomes the player's X. */
+function endStroke() {
+  const s = state.current;
+  state.current = null;
+  if (!s || !state.settings.game) return;
+  const cx = s.pts.reduce((a, p) => a + p.x, 0) / s.pts.length, cy = s.pts.reduce((a, p) => a + p.y, 0) / s.pts.length;
+  const cell = cellAt({ x: cx, y: cy }, state.projAspect);
+  const computerReply = () => {
+    clearTimeout(state.gameTimer);
+    state.gameTimer = setTimeout(() => { state.game.computerMove(); sendGame(); if (state.game.result) scheduleGameReset(); }, 900);
+  };
+  if (state.game.canEmbellish(cell)) return computerReply();   // second line of the X: keep it, give the player a bit more time
+  if (!state.game.playerMove(cell)) {            // illegal (outside board / taken / not your turn): discard the stroke
+    const i = state.strokes.indexOf(s);
+    if (i >= 0) { state.strokes.splice(i, 1); send({ t: 'undo' }); }
+    return;
+  }
+  sendGame();
+  if (state.game.result) return scheduleGameReset();
+  computerReply();
+}
+function sendGame() { send({ t: 'game', game: state.game.state() }); }
+function startGame(on) {
+  clearTimeout(state.gameTimer);
+  state.strokes = []; state.current = null; send({ t: 'clear' });
+  state.game.reset(); sendGame();
+  if (on) log('tic-tac-toe: you are X — draw inside a cell');
+}
+function scheduleGameReset() {
+  clearTimeout(state.gameTimer);
+  log('tic-tac-toe:', state.game.message());
+  state.gameTimer = setTimeout(() => { if (state.settings.game) startGame(true); }, 4000);
+}
+
+// ---------- snapshots (photo + drawing) ----------
+try { state.snapshots = JSON.parse(localStorage.getItem('lg:snapshots') || '[]'); } catch {}
+function takeSnapshot() {
+  if (!video.videoWidth) return status('Start the camera first.');
+  const c = document.createElement('canvas'); c.width = video.videoWidth; c.height = video.videoHeight;
+  c.getContext('2d').drawImage(video, 0, 0);
+  const snap = { id: Date.now(), date: new Date().toISOString(), photo: c.toDataURL('image/jpeg', 0.8),
+    strokes: JSON.parse(JSON.stringify(state.strokes)), settings: { ...state.settings }, game: state.settings.game ? state.game.state() : null,
+    camCorners: state.camCorners, projAspect: state.projAspect };
+  state.snapshots.unshift(snap);
+  while (state.snapshots.length) {
+    try { localStorage.setItem('lg:snapshots', JSON.stringify(state.snapshots)); break; }
+    catch { state.snapshots.pop(); if (!state.snapshots.length) { log('snapshot: localStorage full'); break; } }
+  }
+  renderSnapshots();
+  log('snapshot saved', `(${state.snapshots.length} stored)`);
+}
+function snapDrawingCanvas(snap) {
+  const c = document.createElement('canvas'); c.width = 1920; c.height = Math.round(1920 / (snap.projAspect || 16 / 9));
+  const sc = new Scene(c); sc.setSettings({ ...snap.settings, spin3d: false, fadeSeconds: 0 }); sc.setStrokes(snap.strokes); sc.setGame(snap.game);
+  sc.render(performance.now(), c.getContext('2d'), c.width, c.height, true);
+  return c;
+}
+async function snapCompositeCanvas(snap) {
+  const img = new Image(); img.src = snap.photo; await img.decode();
+  const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight;
+  const ctx = c.getContext('2d'); ctx.drawImage(img, 0, 0);
+  if (snap.camCorners) {
+    const Hinv = invertHomography(computeHomography(snap.camCorners, CORNERS));
+    renderStrokes(ctx, c.width, c.height, snap.strokes, { background: null, xf: p => applyHomography(Hinv, p.x, p.y) });
+  }
+  return c;
+}
+function download(name, url) { const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); }
+function renderSnapshots() {
+  const el = $('snapshots'); el.innerHTML = '';
+  for (const snap of state.snapshots) {
+    const d = document.createElement('div'); d.className = 'snap';
+    const stamp = new Date(snap.date).toLocaleString();
+    d.innerHTML = `<img src="${snap.photo}" alt=""><div class="meta"><div>${stamp} · ${snap.strokes.length} strokes</div><div class="row"></div></div>`;
+    const row = d.querySelector('.row');
+    const btn = (label, fn) => { const b = document.createElement('button'); b.textContent = label; b.onclick = fn; row.appendChild(b); };
+    const base = `laser-graffiti-${snap.date.replace(/[:.]/g, '-')}`;
+    btn('photo', () => download(`${base}-photo.jpg`, snap.photo));
+    btn('drawing', () => download(`${base}-drawing.png`, snapDrawingCanvas(snap).toDataURL('image/png')));
+    btn('photo+drawing', async () => download(`${base}-composite.jpg`, (await snapCompositeCanvas(snap)).toDataURL('image/jpeg', 0.9)));
+    btn('restore', () => { state.strokes = JSON.parse(JSON.stringify(snap.strokes)); state.current = null; send({ t: 'sync', strokes: state.strokes, settings: state.settings, game: state.game.state() }); log('snapshot restored'); });
+    btn('✕', () => { state.snapshots = state.snapshots.filter(x => x.id !== snap.id); localStorage.setItem('lg:snapshots', JSON.stringify(state.snapshots)); renderSnapshots(); });
+    el.appendChild(d);
+  }
+}
+$('snapBtn').onclick = takeSnapshot;
+renderSnapshots();
 
 // ---------- laser menu ----------
 function setMenuOpen(open) {
@@ -225,6 +325,7 @@ function activateMenuItem(it) {
       if (it.value === 'size+') updateSettings({ size: Math.min(60, Math.round(s.size * 1.5)) }, { fromMenu: true });
       if (it.value === 'undo') undo();
       if (it.value === 'clear') clearAll();
+      if (it.value === 'snapshot') { takeSnapshot(); setMenuOpen(false); }
       if (it.value === 'close') setMenuOpen(false);
       break;
   }
@@ -330,7 +431,7 @@ function loop() {
       if (continuing || state.pendingFrames >= 2) emitPoint(proj.x, proj.y);
     } else {
       state.pendingFrames = 0;
-      if (state.current && now - state.lastSeen > 200) state.current = null;
+      if (state.current && now - state.lastSeen > 200) endStroke();
     }
     const extra = blobs.length > 1 ? ` (+${blobs.length - 1} other blob${blobs.length > 2 ? 's' : ''})` : '';
     if (det) status(`Laser at cam (${det.x.toFixed(0)},${det.y.toFixed(0)}) ${det.n}px${extra}${state.H ? '' : ' — not calibrated'}${state.menu.open ? ' · MENU' : ''} · ${state.fps.toFixed(0)} fps`);
