@@ -20,12 +20,29 @@
     text-shadow: 0 0 60px rgba(255,45,149,.35); }
   .tag { font-size: clamp(18px, 2.4vw, 24px); color: #bdbdd0; max-width: 700px; margin: 0 auto 34px; }
   .cta { display: inline-flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
-  .btn { display: inline-block; padding: 14px 26px; border-radius: 999px; font-weight: 600; text-decoration: none; font-size: 17px; border: 1px solid transparent; transition: transform .15s, box-shadow .15s; }
-  .btn:hover { transform: translateY(-2px); }
+  .btn { position: relative; isolation: isolate; overflow: hidden; display: inline-block; padding: 14px 26px; border-radius: 999px; font-weight: 600; text-decoration: none; font-size: 17px; border: 1px solid transparent; transition: transform .2s, box-shadow .3s, color .2s; }
+  .btn:hover { transform: translateY(-2px) scale(1.03); }
   .btn.primary { background: var(--pink); color: #fff; box-shadow: 0 0 40px rgba(255,45,149,.55); }
-  .btn.primary:hover { box-shadow: 0 0 60px rgba(255,45,149,.8); }
+  .btn.primary:hover { box-shadow: 0 0 30px rgba(255,45,149,.9), 0 0 90px rgba(255,45,149,.6), 0 0 140px rgba(0,229,255,.35); }
   .btn.ghost { border-color: #3a3a4a; color: #e8e8f0; }
-  .btn.ghost:hover { border-color: #666; }
+  .btn.ghost:hover { border-color: transparent; box-shadow: 0 0 30px rgba(0,229,255,.35), 0 0 80px rgba(124,77,255,.3); }
+  /* laser ring: a spinning conic gradient behind the button, revealed on hover */
+  .btn::before { content: ""; position: absolute; inset: -60%; z-index: -2; border-radius: 50%; opacity: 0; transition: opacity .3s;
+    background: conic-gradient(from 0deg, #ff2d95, #ffd400, #3cff8a, #00e5ff, #7c4dff, #ff2d95); filter: blur(10px); animation: spin 2.2s linear infinite paused; }
+  .btn:hover::before { opacity: 1; animation-play-state: running; }
+  .btn.primary:hover { background: transparent; }
+  .btn.ghost:hover { color: #fff; }
+  .btn > span { position: relative; z-index: 1; }
+  /* keep a solid core so text stays readable on top of the ring */
+  .btn.primary::after, .btn.ghost::after { content: ""; position: absolute; inset: 2px; border-radius: 999px; background: var(--pink); z-index: -1; transition: background .2s; }
+  .btn.ghost::after { background: #0c0c14; }
+  .btn.primary:hover::after { background: #12060c; }
+  /* sweeping laser beam */
+  .beam { position: absolute; top: -40%; bottom: -40%; width: 26px; left: -60px; z-index: 0; pointer-events: none; transform: skewX(-20deg); opacity: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.9), transparent); filter: blur(2px); }
+  .btn:hover .beam { animation: sweep .9s ease-in-out infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes sweep { 0% { left: -60px; opacity: 0; } 15% { opacity: 1; } 85% { opacity: 1; } 100% { left: 110%; opacity: 0; } }
   .video-wrap { margin: 56px auto 0; max-width: 960px; border-radius: 16px; overflow: hidden; border: 1px solid #2a2a38;
     box-shadow: 0 0 0 1px rgba(255,255,255,.04), 0 40px 100px rgba(0,0,0,.7), 0 0 80px rgba(255,45,149,.15); background: #000; }
   .video-wrap video { display: block; width: 100%; aspect-ratio: 16/9; max-height: 80vh; background: #000; }
@@ -74,8 +91,8 @@
   <h1>Laser Graffiti</h1>
   <p class="tag">Point a projector and a webcam at any wall. Draw with a laser pointer. The projector paints your strokes — glowing neon, dripping ink, spinning in 3D.</p>
   <div class="cta">
-    <a class="btn primary" href="/app.html">Start Laser Graffiti →</a>
-    <a class="btn ghost" href="https://github.com/consti/laser-graffiti">View on GitHub</a>
+    <a class="btn primary" href="/app.html"><span>Start Laser Graffiti →</span><i class="beam"></i></a>
+    <a class="btn ghost" href="https://github.com/consti/laser-graffiti"><span>View on GitHub</span><i class="beam"></i></a>
   </div>
   <div class="video-wrap">
     <video controls playsinline preload="metadata" poster="/media/howitworks.jpg">
@@ -126,7 +143,7 @@
 <section class="wrap">
   <h2>What you need</h2>
   <p class="sub">A laptop with Chrome, a projector (any HDMI projector works — it's just a second screen), a webcam that can see the projected area (the built-in one is fine), and a laser pointer. Green shows up best on camera.</p>
-  <a class="btn primary" style="margin: 8px 0 24px" href="/app.html">Start Laser Graffiti →</a>
+  <a class="btn primary" style="margin: 12px 0 64px" href="/app.html"><span>Start Laser Graffiti →</span><i class="beam"></i></a>
 </section>
 
 <footer class="wrap">
