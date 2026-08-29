@@ -32,9 +32,9 @@
   .inspo { color: #8c8ca0; font-size: 15px; margin: 18px auto 0; max-width: 700px; }
   .inspo a { color: #c9c9dc; text-decoration: underline; text-underline-offset: 3px; }
   .inspo a:hover { color: #fff; }
-  section { padding: 50px 0; }
-  h2 { font-size: 30px; margin: 0 0 8px; letter-spacing: -0.02em; }
-  .sub { color: #9a9ab0; margin: 0 0 22px; }
+  section { padding: 64px 0; }
+  h2 { font-size: 30px; margin: 0 0 14px; padding-top: 24px; letter-spacing: -0.02em; }
+  .sub { color: #9a9ab0; margin: 0 0 32px; }
   .demo-wrap { border: 1px solid #23232f; border-radius: 14px; background: #000; overflow: hidden; box-shadow: 0 30px 80px rgba(0,0,0,.6); }
   #demo { display: block; width: 100%; aspect-ratio: 16/9; touch-action: none; cursor: crosshair; }
   #tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 10px 12px; background: #10101a; border-top: 1px solid #23232f; }
@@ -52,6 +52,8 @@
   ul.feat li { margin: 4px 0; break-inside: avoid; }
   code { background: #1a1a26; padding: 2px 6px; border-radius: 5px; font-size: 14px; }
   footer { padding: 60px 0 120px; color: #77778a; font-size: 14px; text-align: center; border-top: 1px solid #1a1a24; margin-top: 80px; }
+  footer .ai { margin: 28px auto 0; max-width: 560px; font-size: 11px; line-height: 1.6; color: #55556a; }
+  footer .ai a { color: #77778a; }
   @media (max-width: 720px) {
     ul.feat { columns: 1; padding-left: 18px; }
     header { padding: 80px 0 24px; }
@@ -59,7 +61,7 @@
     .btn { padding: 12px 20px; font-size: 15px; }
     .video-wrap { margin-top: 36px; border-radius: 10px; }
     section { padding: 36px 0; }
-    h2 { font-size: 24px; }
+    h2 { font-size: 24px; padding-top: 12px; }
     .card { padding: 18px; }
     #tools { gap: 6px; padding: 8px; }
     #tools button, #tools select { padding: 5px 9px; font-size: 13px; }
@@ -129,6 +131,7 @@
 
 <footer class="wrap">
   Built by <a href="https://consti.de">consti</a> · <a href="https://github.com/consti/laser-graffiti">github.com/consti/laser-graffiti</a>
+  <p class="ai">Does this page smell like AI? Ja, it is all AI. Except this bit and the video :D I personally love how AI has allowed me to build lots of these side projects. For more AI slop, check <a href="https://consti.de">consti.de</a> — sending love from Bangkok &lt;3</p>
 </footer>
 <script type="module" src="demo.js"></script>
 </body>
