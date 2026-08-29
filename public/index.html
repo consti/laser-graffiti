@@ -26,6 +26,12 @@
   .btn.primary:hover { box-shadow: 0 0 60px rgba(255,45,149,.8); }
   .btn.ghost { border-color: #3a3a4a; color: #e8e8f0; }
   .btn.ghost:hover { border-color: #666; }
+  .video-wrap { margin: 56px auto 0; max-width: 960px; border-radius: 16px; overflow: hidden; border: 1px solid #2a2a38;
+    box-shadow: 0 0 0 1px rgba(255,255,255,.04), 0 40px 100px rgba(0,0,0,.7), 0 0 80px rgba(255,45,149,.15); background: #000; }
+  .video-wrap video { display: block; width: 100%; aspect-ratio: 16/9; }
+  .inspo { color: #8c8ca0; font-size: 15px; margin: 18px auto 0; max-width: 700px; }
+  .inspo a { color: #c9c9dc; text-decoration: underline; text-underline-offset: 3px; }
+  .inspo a:hover { color: #fff; }
   section { padding: 50px 0; }
   h2 { font-size: 30px; margin: 0 0 8px; letter-spacing: -0.02em; }
   .sub { color: #9a9ab0; margin: 0 0 22px; }
@@ -57,6 +63,13 @@
     <a class="btn primary" href="/app.html">Start Laser Graffiti →</a>
     <a class="btn ghost" href="https://github.com/consti/laser-graffiti">View on GitHub</a>
   </div>
+  <div class="video-wrap">
+    <video controls playsinline preload="metadata" poster="/media/howitworks.jpg">
+      <source src="/media/howitworks.mp4" type="video/mp4">
+      Your browser doesn't support embedded video — <a href="/media/howitworks.mp4">download the clip</a>.
+    </video>
+  </div>
+  <p class="inspo">Inspired by <a href="https://www.youtube.com/watch?v=DKbtTPYZEig" rel="noopener">this video</a> — laser tagging buildings with a projector, done years ago and still magical.</p>
 </header>
 
 <section class="wrap">
