@@ -51,7 +51,7 @@ function renderScene(now) {
 // 3D: strokes live on a plate at z=0; extrude by drawing several depth layers, rotate about the vertical axis.
 function render3D(now) {
   const w = cv.width, h = cv.height, aspect = w / h;
-  const layers = 7, depth = 0.05, f = 1.6;
+  const layers = 9, depth = 0.025, f = 1.6;
   const cos = Math.cos(spinAngle), sin = Math.sin(spinAngle);
   const project = z => p => {
     const X = (p.x - 0.5), Y = (p.y - 0.5) / aspect;      // aspect-corrected units (width = 1)
