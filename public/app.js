@@ -380,3 +380,4 @@ addEventListener('unhandledrejection', e => log('ERROR:', e.reason?.message || e
   if (localStorage.getItem('lg:cam')) startCamera().catch(e => status('Click "Start camera" (' + e.message + ')'));
   else status('Click "Start camera" to begin.');
 })();
+window.lg = state; // debugging handle
