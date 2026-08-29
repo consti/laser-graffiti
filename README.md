@@ -3,7 +3,11 @@
 Draw on a projected surface with a laser pointer. A camera watches the projection area, finds the laser dot,
 maps it into projector coordinates via a calibrated homography, and the projector renders the stroke.
 
-Live at **https://laser.consti.de** (landing page with a mouse-driven demo; the app is at `/app.html`).
+**Live at https://laser.consti.de** — landing page with a mouse-driven demo; the app itself is at
+[laser.consti.de/app.html](https://laser.consti.de/app.html).
+
+▶ [Watch how it works (43 s)](https://laser.consti.de/media/howitworks.mp4) · inspired by
+[this video](https://www.youtube.com/watch?v=DKbtTPYZEig).
 
 ## Run
 

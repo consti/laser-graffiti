@@ -11,7 +11,7 @@
   body { margin: 0; background: var(--bg); color: #e8e8f0; font: 16px/1.6 -apple-system, system-ui, "Segoe UI", sans-serif; }
   a { color: var(--cyan); }
   .wrap { max-width: 1100px; margin: 0 auto; padding: 0 20px; }
-  header { padding: 90px 0 40px; text-align: center; position: relative; }
+  header { padding: 140px 0 40px; text-align: center; position: relative; }
   header::before { content: ""; position: absolute; left: 50%; top: -260px; width: 100vw; height: 760px; transform: translateX(-50%); z-index: -1; pointer-events: none;
     background: radial-gradient(ellipse at 30% 40%, rgba(255,45,149,.35), transparent 55%), radial-gradient(ellipse at 70% 30%, rgba(0,229,255,.28), transparent 55%), radial-gradient(ellipse at 50% 80%, rgba(124,77,255,.25), transparent 60%);
     filter: blur(30px); }
@@ -28,7 +28,7 @@
   .btn.ghost:hover { border-color: #666; }
   .video-wrap { margin: 56px auto 0; max-width: 960px; border-radius: 16px; overflow: hidden; border: 1px solid #2a2a38;
     box-shadow: 0 0 0 1px rgba(255,255,255,.04), 0 40px 100px rgba(0,0,0,.7), 0 0 80px rgba(255,45,149,.15); background: #000; }
-  .video-wrap video { display: block; width: 100%; aspect-ratio: 16/9; }
+  .video-wrap video { display: block; width: 100%; aspect-ratio: 16/9; max-height: 80vh; background: #000; }
   .inspo { color: #8c8ca0; font-size: 15px; margin: 18px auto 0; max-width: 700px; }
   .inspo a { color: #c9c9dc; text-decoration: underline; text-underline-offset: 3px; }
   .inspo a:hover { color: #fff; }
@@ -51,8 +51,20 @@
   ul.feat { columns: 2; gap: 40px; padding-left: 20px; color: #c8c8da; }
   ul.feat li { margin: 4px 0; break-inside: avoid; }
   code { background: #1a1a26; padding: 2px 6px; border-radius: 5px; font-size: 14px; }
-  footer { padding: 40px 0 60px; color: #77778a; font-size: 14px; text-align: center; border-top: 1px solid #1a1a24; margin-top: 40px; }
-  @media (max-width: 640px) { ul.feat { columns: 1; } header { padding-top: 60px; } }
+  footer { padding: 60px 0 120px; color: #77778a; font-size: 14px; text-align: center; border-top: 1px solid #1a1a24; margin-top: 80px; }
+  @media (max-width: 720px) {
+    ul.feat { columns: 1; padding-left: 18px; }
+    header { padding: 80px 0 24px; }
+    .tag { font-size: 17px; margin-bottom: 26px; }
+    .btn { padding: 12px 20px; font-size: 15px; }
+    .video-wrap { margin-top: 36px; border-radius: 10px; }
+    section { padding: 36px 0; }
+    h2 { font-size: 24px; }
+    .card { padding: 18px; }
+    #tools { gap: 6px; padding: 8px; }
+    #tools button, #tools select { padding: 5px 9px; font-size: 13px; }
+    footer { padding: 40px 0 80px; margin-top: 40px; }
+  }
 </style>
 </head>
 <body>
