@@ -61,7 +61,7 @@ export function menuLayout(aspect = 16 / 9) {
   const row = (list, kind, opts = {}) => {
     list.forEach((v, i) => {
       const col = i % 4, r = Math.floor(i / 4);
-      items.push({ id: `${kind}:${v.id ?? v}`, kind, value: v.value ?? v, label: v.label ?? String(v), color: v.color,
+      items.push({ id: `${kind}:${v.id ?? v}`, kind, value: v.value ?? v.id ?? v, label: v.label ?? String(v), color: v.color,
         x: x0 + col * (cw + gap), y: y + r * (ch + gap), w: cw, h: ch, ...opts });
     });
     y += Math.ceil(list.length / 4) * (ch + gap) + 0.012;
