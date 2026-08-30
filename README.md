@@ -27,8 +27,8 @@ npm start            # http://localhost:8765  (landing page + demo; control app 
 ## Laser menu
 
 A dashed ☰ circle sits in the top-right corner of the projection. Hold the laser in it for half a second to open
-the menu; hover an item for ~0.65 s to activate it. It offers colours, brushes, effect toggles, mirror mode,
-size, undo, clear, and close. The menu closes itself after 8 s without a laser.
+the menu; hover an item for ~0.65 s to activate it. It offers colours, brushes, effect toggles (incl. flame and burn), mirror mode,
+size, effect intensity (`fx −`/`fx +`), undo, snapshot, clear, and close. The menu closes itself after 8 s without a laser.
 
 ## Brushes & modes
 
@@ -38,6 +38,22 @@ size, undo, clear, and close. The menu closes itself after 8 s without a laser.
 - **Fade** – strokes dissolve after N seconds (slider in the control window, 6 s from the menu).
 - **Mirror** – kaleidoscope ×2/×4/×6/×8 around the centre.
 - **Sparkle** – a particle trail follows the laser while drawing.
+- **Flame** – fire licks up from the freshly drawn part of the stroke (it keeps burning for ~2 s after the laser has passed).
+- **Burn** – see below.
+- **Effect intensity** (slider in the control window, `fx −`/`fx +` in the laser menu, ×0.25…×3): one knob that scales every
+  effect — how often and how far wet ink drips, how many sparks, how big and how many flames, how hot and how long a burn glows.
+
+## Burn into the surface
+
+Burn mode makes strokes look scorched *into* the wall rather than painted onto it. A projector cannot project black, so the
+trick is to light the wall softly (the *light* slider) and cut the stroke out of that light: the char is unlit, a
+white‑hot → orange → dim‑red ember rim glows around it and cools over a few seconds (scaled by intensity), with smoke and
+sparks rising from the tip.
+
+**Scan surface** takes it further: the projector is blanked, the camera photographs the wall, and the photo is warped through
+the inverse calibration homography into projector space and projected back onto the wall itself. The surface is then lit with
+its own texture (every brick and stain lands on itself), so the black scorch marks read as real damage to the material. The
+scan is kept in `localStorage`; without a scan a warm neutral light is used. Needs a projector calibration first.
 
 ## Tic-tac-toe, border, snapshots
 

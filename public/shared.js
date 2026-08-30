@@ -9,7 +9,11 @@ export const DEFAULT_SETTINGS = {
   color: COLORS[0], brush: 'round', size: 8 /* per-mille of width */,
   fadeSeconds: 0, wetInk: false, spin3d: false, symmetry: 1, sparkle: false, hotCorner: true,
   border: false, borderColor: '#ffffff', borderWidth: 6 /* px at 1080p */, game: false,
+  flame: false, burn: false, burnAmbient: 0.35 /* how brightly the surface is lit in burn mode */,
+  intensity: 1 /* scales all effects: drips, sparks, flames, burn heat (INTENSITY_MIN..INTENSITY_MAX) */,
 };
+export const INTENSITY_MIN = 0.25, INTENSITY_MAX = 3;
+export const clampIntensity = v => Math.min(INTENSITY_MAX, Math.max(INTENSITY_MIN, Math.round(v * 100) / 100));
 
 // ---------- tic-tac-toe board geometry (normalized projector coords) ----------
 export function boardGeometry(aspect = 16 / 9) {
@@ -68,23 +72,23 @@ export const MENU_DWELL_MS = 650, HOT_DWELL_MS = 500;
 
 export function menuLayout(aspect = 16 / 9) {
   const items = [];
-  const cw = 0.06, ch = cw * aspect * 0.8;  // roughly square cells in pixels
-  const x0 = 0.985 - 4 * cw - 3 * 0.01, gap = 0.01;
+  const cols = 5, cw = 0.055, ch = cw * aspect * 0.8;  // roughly square cells in pixels
+  const x0 = 0.985 - cols * cw - (cols - 1) * 0.01, gap = 0.01;
   let y = 0.06;
   const row = (list, kind, opts = {}) => {
     list.forEach((v, i) => {
-      const col = i % 4, r = Math.floor(i / 4);
+      const col = i % cols, r = Math.floor(i / cols);
       items.push({ id: `${kind}:${v.id ?? v}`, kind, value: v.value ?? v.id ?? v, label: v.label ?? String(v), color: v.color,
         x: x0 + col * (cw + gap), y: y + r * (ch + gap), w: cw, h: ch, ...opts });
     });
-    y += Math.ceil(list.length / 4) * (ch + gap) + 0.012;
+    y += Math.ceil(list.length / cols) * (ch + gap) + 0.012;
   };
   row(COLORS.map(c => ({ id: c, value: c, label: '', color: c })), 'color');
   row(BRUSHES.map(b => ({ id: b, value: b, label: b })), 'brush');
   row([{ id: 'wetInk', label: 'wet ink' }, { id: 'spin3d', label: 'spin 3D' }, { id: 'fade', label: 'fade' }, { id: 'sparkle', label: 'sparkle' },
-       { id: 'border', label: 'border' }, { id: 'game', label: 'tic-tac-toe' }], 'toggle');
-  row([{ id: 'symmetry', label: 'mirror' }, { id: 'size-', label: 'size −' }, { id: 'size+', label: 'size +' }, { id: 'undo', label: 'undo' },
-       { id: 'snapshot', label: '📸 snapshot' }, { id: 'clear', label: 'clear' }, { id: 'close', label: 'close' }], 'action');
+       { id: 'flame', label: '🔥 flame' }, { id: 'burn', label: 'burn' }, { id: 'border', label: 'border' }, { id: 'game', label: 'tic-tac-toe' }], 'toggle');
+  row([{ id: 'symmetry', label: 'mirror' }, { id: 'size-', label: 'size −' }, { id: 'size+', label: 'size +' }, { id: 'fx-', label: 'fx −' }, { id: 'fx+', label: 'fx +' },
+       { id: 'undo', label: 'undo' }, { id: 'snapshot', label: '📸 snapshot' }, { id: 'clear', label: 'clear' }, { id: 'close', label: 'close' }], 'action');
   const panel = { x: x0 - 0.02, y: 0.03, w: 0.985 - x0 + 0.03, h: y };
   return { items, panel };
 }

@@ -97,9 +97,19 @@
         <button id="wetInk" data-toggle>wet ink</button>
         <button id="spin3d" data-toggle>spin 3D</button>
         <button id="sparkle" data-toggle>sparkle</button>
+        <button id="flame" data-toggle>🔥 flame</button>
         <button id="game" data-toggle>tic-tac-toe</button>
         <button id="hotCorner" data-toggle>laser menu</button>
       </div>
+      <label>Effect intensity <input type="range" id="intensity" min="25" max="300" value="100"><span class="v"></span></label>
+      <div class="hint">Scales every effect: how much wet ink drips, how many sparks, how big the flames, how hot and how long the burn glows.</div>
+      <div class="row" style="margin-top:6px">
+        <button id="burn" data-toggle>🔥 burn into surface</button>
+        <button id="scanSurface">Scan surface</button>
+        <label style="flex:1;margin:0">light <input type="range" id="burnAmbient" min="0" max="100" value="35"><span class="v"></span></label>
+      </div>
+      <div class="hint" id="surfaceInfo">Burn: the projector lights the wall softly and your strokes are cut into it as black char with a white-hot → orange → ember edge, smoke and sparks.
+        <b>Scan surface</b> photographs the wall through the camera (projector blanked) and projects that texture back onto itself, so the scorch marks look like they are really in the surface. Needs calibration.</div>
       <div class="row" style="margin-top:6px">
         <button id="border" data-toggle>border</button>
         <input type="color" id="borderColor" value="#ffffff" title="border color">

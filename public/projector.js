@@ -19,7 +19,8 @@ bc.onmessage = ({ data: m }) => {
     case 'cursor': scene.setCursor(m); break;
     case 'clear': scene.clear(); break;
     case 'undo': scene.undo(); break;
-    case 'sync': scene.setStrokes(m.strokes); scene.setSettings(m.settings); if (m.game !== undefined) scene.setGame(m.game); break;
+    case 'sync': scene.setStrokes(m.strokes); scene.setSettings(m.settings); if (m.game !== undefined) scene.setGame(m.game); if (m.surface !== undefined) scene.setSurface(m.surface); break;
+    case 'surface': scene.setSurface(m.url); break;
     case 'settings': scene.setSettings(m.settings); break;
     case 'menu': scene.setMenu(m.menu); break;
     case 'game': scene.setGame(m.game); break;

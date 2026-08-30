@@ -1,5 +1,5 @@
 // Landing-page demo: your mouse/finger is the laser. Uses the same Scene renderer and game as the real thing.
-import { COLORS, BRUSHES, DEFAULT_SETTINGS, cellAt, SYMMETRIES } from './shared.js';
+import { COLORS, BRUSHES, DEFAULT_SETTINGS, cellAt, SYMMETRIES, INTENSITY_MIN, INTENSITY_MAX } from './shared.js';
 import { Scene } from './scene.js';
 import { TicTacToe } from './game.js';
 
@@ -32,7 +32,7 @@ const brushSel = document.createElement('select');
 for (const b of BRUSHES) { const o = document.createElement('option'); o.value = b; o.textContent = b; brushSel.appendChild(o); }
 brushSel.onchange = () => apply({ brush: brushSel.value });
 tb.appendChild(brushSel);
-const toggles = [['wetInk', 'wet ink'], ['spin3d', 'spin 3D'], ['fade', 'fade'], ['sparkle', 'sparkle'], ['symmetry', 'mirror'], ['border', 'border'], ['game', 'tic-tac-toe']];
+const toggles = [['wetInk', 'wet ink'], ['spin3d', 'spin 3D'], ['fade', 'fade'], ['sparkle', 'sparkle'], ['flame', '🔥 flame'], ['burn', 'burn'], ['symmetry', 'mirror'], ['border', 'border'], ['game', 'tic-tac-toe']];
 const toggleEls = {};
 for (const [k, label] of toggles) {
   const b = document.createElement('button'); b.textContent = label; toggleEls[k] = b;
@@ -43,6 +43,11 @@ for (const [k, label] of toggles) {
   };
   tb.appendChild(b);
 }
+const fxWrap = document.createElement('label'); fxWrap.className = 'fx'; fxWrap.title = 'effect intensity';
+const fxSlider = document.createElement('input'); fxSlider.type = 'range'; fxSlider.min = INTENSITY_MIN * 100; fxSlider.max = INTENSITY_MAX * 100; fxSlider.value = 100;
+const fxVal = document.createElement('span');
+fxSlider.oninput = () => apply({ intensity: Number(fxSlider.value) / 100 });
+fxWrap.append('fx', fxSlider, fxVal); tb.appendChild(fxWrap);
 const clearBtn = document.createElement('button'); clearBtn.textContent = 'clear'; clearBtn.onclick = () => { scene.clear(); if (settings.game) startGame(); }; tb.appendChild(clearBtn);
 
 function apply(patch) {
@@ -55,6 +60,7 @@ function apply(patch) {
 function syncUI() {
   colorsEl.querySelectorAll('.sw').forEach(b => b.classList.toggle('sel', b.dataset.color === settings.color));
   brushSel.value = settings.brush;
+  fxSlider.value = Math.round(settings.intensity * 100); fxVal.textContent = `×${settings.intensity.toFixed(settings.intensity % 1 ? 2 : 0)}`;
   for (const [k] of toggles) {
     const on = k === 'fade' ? settings.fadeSeconds > 0 : k === 'symmetry' ? settings.symmetry > 1 : !!settings[k];
     toggleEls[k].classList.toggle('on', on);

@@ -1,4 +1,4 @@
-import { CHANNEL, COLORS, BRUSHES, SYMMETRIES, DEFAULT_SETTINGS, MENU_DWELL_MS, HOT_DWELL_MS,
+import { CHANNEL, COLORS, BRUSHES, SYMMETRIES, DEFAULT_SETTINGS, MENU_DWELL_MS, HOT_DWELL_MS, clampIntensity,
   computeHomography, applyHomography, invertHomography, renderStrokes, menuLayout, hitMenu, inHotCorner, cellAt } from './shared.js';
 import { Scene } from './scene.js';
 import { TicTacToe } from './game.js';
@@ -27,6 +27,7 @@ const state = {
   menu: { open: false, hover: null, hoverSince: 0, progress: 0, hotSince: 0, hotProgress: 0, lastLaser: 0 },
   game: new TicTacToe(), gameTimer: 0,
   snapshots: [],
+  surface: localStorage.getItem('lg:surface') || null,   // camera scan of the wall in projector space (burn mode)
 };
 window.lg = state; window.lgDebug = { emit: (x, y) => emitPoint(x, y), end: () => endStroke(), snapshot: () => takeSnapshot() };
 
@@ -74,7 +75,9 @@ function syncSettingsUI() {
   $('size').value = s.size; $('size').nextElementSibling.textContent = s.size;
   $('fadeSeconds').value = s.fadeSeconds; $('fadeSeconds').nextElementSibling.textContent = s.fadeSeconds;
   $('symmetry').value = s.symmetry;
-  for (const id of ['wetInk', 'spin3d', 'sparkle', 'hotCorner', 'border', 'game']) $(id).classList.toggle('on', !!s[id]);
+  for (const id of ['wetInk', 'spin3d', 'sparkle', 'hotCorner', 'border', 'game', 'flame', 'burn']) $(id).classList.toggle('on', !!s[id]);
+  $('intensity').value = Math.round(s.intensity * 100); $('intensity').nextElementSibling.textContent = `×${s.intensity}`;
+  $('burnAmbient').value = Math.round(s.burnAmbient * 100); $('burnAmbient').nextElementSibling.textContent = Math.round(s.burnAmbient * 100) + '%';
   $('borderColor').value = s.borderColor;
   $('borderWidth').value = s.borderWidth; $('borderWidth').nextElementSibling.textContent = s.borderWidth;
 }
@@ -89,7 +92,10 @@ $('brush').onchange = e => updateSettings({ brush: e.target.value });
 $('size').oninput = e => updateSettings({ size: Number(e.target.value) });
 $('fadeSeconds').oninput = e => updateSettings({ fadeSeconds: Number(e.target.value) });
 $('symmetry').onchange = e => updateSettings({ symmetry: Number(e.target.value) });
-for (const id of ['wetInk', 'spin3d', 'sparkle', 'hotCorner', 'border', 'game']) $(id).onclick = () => updateSettings({ [id]: !state.settings[id] });
+for (const id of ['wetInk', 'spin3d', 'sparkle', 'hotCorner', 'border', 'game', 'flame', 'burn']) $(id).onclick = () => updateSettings({ [id]: !state.settings[id] });
+$('intensity').oninput = e => updateSettings({ intensity: clampIntensity(Number(e.target.value) / 100) });
+$('burnAmbient').oninput = e => updateSettings({ burnAmbient: Number(e.target.value) / 100, burn: true });
+$('scanSurface').onclick = () => scanSurface().catch(e => { log('surface scan failed:', e.message); $('surfaceInfo').textContent = 'Surface scan failed: ' + e.message; });
 $('borderColor').oninput = e => updateSettings({ borderColor: e.target.value, border: true });
 $('borderWidth').oninput = e => updateSettings({ borderWidth: Number(e.target.value) });
 syncSettingsUI();
@@ -138,7 +144,7 @@ $('openProj').onclick = async () => {
   window.open('projector.html', 'laser-projector', feat);
 };
 bc.onmessage = ({ data: m }) => {
-  if (m.t === 'proj:hello') { send({ t: 'sync', strokes: state.strokes, settings: state.settings, game: state.game.state() }); log('projector window connected'); }
+  if (m.t === 'proj:hello') { send({ t: 'sync', strokes: state.strokes, settings: state.settings, game: state.game.state(), surface: state.surface }); log('projector window connected'); }
   if (m.t === 'proj:size') { state.projAspect = m.w / m.h; $('projInfo').textContent = `Projector canvas: ${m.w}×${m.h}`; }
 };
 send({ t: 'hello' });
@@ -323,6 +329,8 @@ function activateMenuItem(it) {
       if (it.value === 'symmetry') updateSettings({ symmetry: SYMMETRIES[(SYMMETRIES.indexOf(s.symmetry) + 1) % SYMMETRIES.length] }, { fromMenu: true });
       if (it.value === 'size-') updateSettings({ size: Math.max(1, Math.round(s.size / 1.5)) }, { fromMenu: true });
       if (it.value === 'size+') updateSettings({ size: Math.min(60, Math.round(s.size * 1.5)) }, { fromMenu: true });
+      if (it.value === 'fx-') updateSettings({ intensity: clampIntensity(s.intensity / 1.5) }, { fromMenu: true });
+      if (it.value === 'fx+') updateSettings({ intensity: clampIntensity(s.intensity * 1.5) }, { fromMenu: true });
       if (it.value === 'undo') undo();
       if (it.value === 'clear') clearAll();
       if (it.value === 'snapshot') { takeSnapshot(); setMenuOpen(false); }
@@ -588,6 +596,51 @@ $('calBtn').onclick = async () => {
     log('calibration failed:', e.message);
   } finally { state.calibrating = false; }
 };
+
+// ---------- surface scan (burn mode): photograph the wall with the projector blanked, warp it into projector space ----------
+async function scanSurface() {
+  if (!stream || !video.videoWidth) throw new Error('start the camera first');
+  if (!state.Hinv) throw new Error('calibrate the projector first');
+  state.calibrating = true;
+  try {
+    status('Scanning surface… (projector blanked)');
+    send({ t: 'cal', kind: 'black' }); await sleep(700);
+    // average a few full-resolution frames to get rid of sensor noise
+    const vw = video.videoWidth, vh = video.videoHeight;
+    const fc = document.createElement('canvas'); fc.width = vw; fc.height = vh;
+    const fctx = fc.getContext('2d', { willReadFrequently: true });
+    const N = 3, acc = new Float32Array(vw * vh * 4);
+    for (let k = 0; k < N; k++) {
+      await sleep(60); fctx.drawImage(video, 0, 0);
+      const d = fctx.getImageData(0, 0, vw, vh).data;
+      for (let i = 0; i < d.length; i++) acc[i] += d[i];
+    }
+    send({ t: 'cal', kind: 'off' });
+    // inverse-map every projector pixel to the camera image (bilinear-free nearest sample is fine at this resolution)
+    const pw = 960, ph = Math.round(pw / state.projAspect);
+    const out = new ImageData(pw, ph), o = out.data, Hinv = state.Hinv;
+    let sr = 0, sg = 0, sb = 0;
+    for (let y = 0; y < ph; y++) for (let x = 0; x < pw; x++) {
+      const c = applyHomography(Hinv, (x + 0.5) / pw, (y + 0.5) / ph);
+      const cx = Math.min(vw - 1, Math.max(0, Math.round(c.x * vw))), cy = Math.min(vh - 1, Math.max(0, Math.round(c.y * vh)));
+      const j = (cy * vw + cx) * 4, k = (y * pw + x) * 4;
+      o[k] = acc[j] / N; o[k + 1] = acc[j + 1] / N; o[k + 2] = acc[j + 2] / N; o[k + 3] = 255;
+      sr += o[k]; sg += o[k + 1]; sb += o[k + 2];
+    }
+    // normalise exposure so the texture is bright enough to be projected back, but keep the wall's colour and structure
+    const n = pw * ph, mean = (sr + sg + sb) / (3 * n), gain = Math.min(4, 170 / Math.max(20, mean));
+    for (let i = 0; i < o.length; i += 4) { o[i] = Math.min(255, o[i] * gain); o[i + 1] = Math.min(255, o[i + 1] * gain); o[i + 2] = Math.min(255, o[i + 2] * gain); }
+    const sc = document.createElement('canvas'); sc.width = pw; sc.height = ph; sc.getContext('2d').putImageData(out, 0, 0);
+    const url = sc.toDataURL('image/jpeg', 0.85);
+    state.surface = url;
+    try { localStorage.setItem('lg:surface', url); } catch { log('surface: too large for localStorage, kept for this session only'); }
+    send({ t: 'surface', url });
+    if (!state.settings.burn) updateSettings({ burn: true });
+    const avg = `rgb(${Math.round(sr / n)},${Math.round(sg / n)},${Math.round(sb / n)})`;
+    $('surfaceInfo').innerHTML = `Surface scanned (${pw}×${ph}, mean brightness ${mean.toFixed(0)}, gain ×${gain.toFixed(1)}, average colour <span style="display:inline-block;width:12px;height:12px;vertical-align:middle;border-radius:3px;background:${avg}"></span>). Burn mode is on — draw!`;
+    log(`surface scanned: mean ${mean.toFixed(0)} gain ${gain.toFixed(2)}`);
+  } finally { state.calibrating = false; send({ t: 'cal', kind: 'off' }); }
+}
 
 // ---------- laser calibration: learn thresholds from the actual laser ----------
 $('laserCalBtn').onclick = () => {
