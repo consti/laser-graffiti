@@ -1,5 +1,5 @@
 // Scene: the drawing surface renderer shared by the projector window, the landing-page demo and snapshots.
-import { DEFAULT_SETTINGS, hotCorner, menuLayout, drawStroke, withSymmetry, boardGeometry } from './shared.js';
+import { DEFAULT_SETTINGS, hotCorner, menuLayout, drawStroke, withSymmetry, boardGeometry, smoothPts } from './shared.js';
 
 const rnd01 = (i, k) => { const s = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453; return s - Math.floor(s); };
 
@@ -44,7 +44,7 @@ export class Scene {
     if (this.settings.sparkle) this.spawnSparks(m, s.color);
     if (this.settings.flame) this.spawnFlames(m, s, 3);
     if (this.settings.burn) this.spawnEmbers(m, s);
-    if (!this.cal && !this.animated()) drawStroke(this.ctx, this.cv.width, this.cv.height, s, s.pts.length - 1); // incremental fast path
+    if (!this.cal && !this.animated() && !this.settings.lineSmooth) drawStroke(this.ctx, this.cv.width, this.cv.height, s, s.pts.length - 1); // incremental fast path
     else this.dirty = true;
   }
 
@@ -91,7 +91,7 @@ export class Scene {
     if (this.settings.spin3d) this.render3D(ctx, w, h, now);
     else if (this.settings.burn) this.renderBurn(ctx, w, h, now);
     else {
-      for (const s of this.strokes) { const a = this.strokeAlpha(s, now); if (a <= 0) continue; ctx.globalAlpha = a; drawStroke(ctx, w, h, s); }
+      for (const s of this.strokes) { const a = this.strokeAlpha(s, now); if (a <= 0) continue; ctx.globalAlpha = a; drawStroke(ctx, w, h, s, 0, null, this.settings.lineSmooth); }
       ctx.globalAlpha = 1;
       this.renderDrips(ctx, w, h, now);
     }
@@ -124,7 +124,7 @@ export class Scene {
       for (const s of this.strokes) {
         const a = this.strokeAlpha(s, now); if (a <= 0) continue;
         ctx.globalAlpha = a * shade;
-        drawStroke(ctx, w, h, { ...s, brush: s.brush === 'spray' ? 'round' : s.brush }, 0, project(z));
+        drawStroke(ctx, w, h, { ...s, brush: s.brush === 'spray' ? 'round' : s.brush }, 0, project(z), this.settings.lineSmooth);
       }
     });
     ctx.globalAlpha = 1;
@@ -243,7 +243,7 @@ export class Scene {
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     for (const s of this.strokes) {
       const a = this.strokeAlpha(s, now); if (a <= 0 || !s.pts.length) continue;
-      const size = s.size * w, pts = s.pts;
+      const size = s.size * w, pts = smoothPts(s.pts, this.settings.lineSmooth);
       const P = i => [pts[i].x * w, pts[i].y * h];
       const heatAt = i => Math.min(1, Math.max(0, 1 - (now - (pts[i].t ?? s.lastT)) / cool));            // 1 = white hot, 0 = cold
       withSymmetry(ctx, w, h, s.symmetry, () => {

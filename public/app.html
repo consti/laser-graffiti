@@ -79,7 +79,7 @@
       <label>Dominance <input type="range" id="minDelta" min="0" max="200" value="45"><span class="v"></span></label>
       <label>Min pixels <input type="range" id="minPixels" min="1" max="40" value="2"><span class="v"></span></label>
       <label>Max pixels <input type="range" id="maxPixels" min="10" max="2000" value="400"><span class="v"></span></label>
-      <label>Smoothing <input type="range" id="smooth" min="0" max="90" value="35"><span class="v"></span></label>
+      <label>Position smoothing <input type="range" id="smooth" min="0" max="90" value="35"><span class="v"></span></label>
       <label>Tracking radius <input type="range" id="trackR" min="10" max="200" value="60"><span class="v"></span></label>
       <label><input type="checkbox" id="satWhite"> also accept saturated white core</label>
       <label><input type="checkbox" id="roiOnly" checked> only inside projection area</label>
@@ -94,6 +94,9 @@
       <div class="swatches" id="swatches"></div>
       <label>Brush <select id="brush"></select></label>
       <label>Brush size <input type="range" id="size" min="1" max="40" value="8"><span class="v"></span></label>
+      <label>Line smoothing <input type="range" id="lineSmooth" min="0" max="10" value="2"><span class="v"></span></label>
+      <div class="hint">Smooths the drawn line itself (moving average + curved segments) — kills the zigzag of a jittery laser track
+        without adding lag. <i>Position smoothing</i> in Detection filters the live position instead.</div>
       <label>Fade after (s, 0 = never) <input type="range" id="fadeSeconds" min="0" max="60" value="0"><span class="v"></span></label>
       <label>Mirror <select id="symmetry"><option value="1">off</option><option value="2">×2</option><option value="4">×4</option><option value="6">×6</option><option value="8">×8</option></select></label>
       <div class="row">

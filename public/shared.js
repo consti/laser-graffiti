@@ -9,7 +9,7 @@ export const DEFAULT_SETTINGS = {
   color: COLORS[0], brush: 'round', size: 8 /* per-mille of width */,
   fadeSeconds: 0, wetInk: false, spin3d: false, symmetry: 1, sparkle: false, hotCorner: true,
   border: false, borderColor: '#ffffff', borderWidth: 6 /* px at 1080p */, game: false,
-  menuCorner: 'tr' /* tr | tl | br | bl */, flame: false, burn: false, burnAmbient: 0.35 /* how brightly the surface is lit in burn mode */,
+  menuCorner: 'tr' /* tr | tl | br | bl */, lineSmooth: 2 /* 0..10: geometric smoothing of the drawn line */, flame: false, burn: false, burnAmbient: 0.35 /* how brightly the surface is lit in burn mode */,
   intensity: 1 /* scales all effects: drips, sparks, flames, burn heat (INTENSITY_MIN..INTENSITY_MAX) */,
 };
 export const INTENSITY_MIN = 0.25, INTENSITY_MAX = 3;
@@ -126,10 +126,31 @@ export function withSymmetry(ctx, w, h, symmetry, fn) {
   }
 }
 
+/**
+ * Geometric line smoothing: moving average over up to `n` neighbours on each side (ends are pinned) — removes the
+ * zigzag of a jittery laser track without the lag of filtering the live position. Returns the input when n is 0.
+ */
+export function smoothPts(pts, n) {
+  n = Math.round(n || 0);
+  if (n <= 0 || pts.length < 3) return pts;
+  const out = new Array(pts.length);
+  for (let i = 0; i < pts.length; i++) {
+    const k = Math.min(n, i, pts.length - 1 - i);          // shrink the window near the ends so they stay put
+    if (k === 0) { out[i] = pts[i]; continue; }
+    let x = 0, y = 0;
+    for (let j = i - k; j <= i + k; j++) { x += pts[j].x; y += pts[j].y; }
+    out[i] = { ...pts[i], x: x / (2 * k + 1), y: y / (2 * k + 1) };
+  }
+  return out;
+}
+let curvy = false;   // set by drawStroke: polyline() uses quadratic curves through segment midpoints when smoothing is on
+
 /** Draw stroke s from point index `from` (0 = whole). Coordinates are normalized; `xf` optionally transforms points. */
-export function drawStroke(ctx, w, h, s, from = 0, xf = null) {
-  const pts = xf ? s.pts.map(xf) : s.pts;
+export function drawStroke(ctx, w, h, s, from = 0, xf = null, smooth = 0) {
+  let pts = xf ? s.pts.map(xf) : s.pts;
   if (!pts.length) return;
+  if (smooth > 0) { pts = smoothPts(pts, smooth); from = Math.max(0, from - Math.round(smooth) - 1); }
+  curvy = smooth > 0;
   const size = s.size * w;
   const P = i => [pts[i].x * w, pts[i].y * h];
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
@@ -187,18 +208,22 @@ function polyline(ctx, P, n, from, width, color) {
   ctx.strokeStyle = color; ctx.lineWidth = width; ctx.beginPath();
   const start = Math.max(0, from - 1);
   ctx.moveTo(...P(start));
-  for (let i = start + 1; i < n; i++) ctx.lineTo(...P(i));
+  if (curvy && n - start > 2) {
+    // quadratic curves through the midpoints: C1-continuous, passes near every sample
+    for (let i = start + 1; i < n - 1; i++) { const [x0, y0] = P(i), [x1, y1] = P(i + 1); ctx.quadraticCurveTo(x0, y0, (x0 + x1) / 2, (y0 + y1) / 2); }
+    ctx.lineTo(...P(n - 1));
+  } else for (let i = start + 1; i < n; i++) ctx.lineTo(...P(i));
   ctx.stroke();
 }
 function dot(ctx, x, y, r, color) { ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); }
 
 /** Simple full render used by the control-window preview. */
-export function renderStrokes(ctx, w, h, strokes, { fadeSeconds = 0, now = 0, background = '#000', xf = null } = {}) {
+export function renderStrokes(ctx, w, h, strokes, { fadeSeconds = 0, now = 0, background = '#000', xf = null, lineSmooth = 0 } = {}) {
   ctx.globalAlpha = 1;
   if (background) { ctx.fillStyle = background; ctx.fillRect(0, 0, w, h); }
   for (const s of strokes) {
     if (fadeSeconds > 0) { const a = 1 - (now - s.lastT) / 1000 / fadeSeconds; if (a <= 0) continue; ctx.globalAlpha = Math.min(1, a); }
-    drawStroke(ctx, w, h, s, 0, xf);
+    drawStroke(ctx, w, h, s, 0, xf, lineSmooth);
   }
   ctx.globalAlpha = 1;
 }

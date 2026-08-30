@@ -66,6 +66,13 @@ scan is kept in `localStorage`; without a scan a warm neutral light is used. Nee
   can be downloaded as the photo, the drawing (1920×1080 PNG), or the photo with the drawing warped onto it via the
   inverse calibration homography; *restore* puts the strokes back on the wall.
 
+## Smooth lines
+
+Two sliders fight laser jitter. *Position smoothing* (Detection) low-pass filters the live position — cheap but adds lag.
+*Line smoothing* (Drawing, 0–10, default 2) smooths the drawn geometry instead: a moving average over up to N neighbouring
+points (ends pinned) plus quadratic curves through the segment midpoints. It applies live to everything on the wall, to the
+preview and to snapshots, and costs no lag.
+
 ## Reflections & robustness
 
 Candidate pixels are clustered into up to four blobs. The tracker follows the blob nearest to the previous

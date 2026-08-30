@@ -83,6 +83,7 @@ function syncSettingsUI() {
   $('fadeSeconds').value = s.fadeSeconds; $('fadeSeconds').nextElementSibling.textContent = s.fadeSeconds;
   $('symmetry').value = s.symmetry;
   $('menuCorner').value = s.menuCorner;
+  $('lineSmooth').value = s.lineSmooth; $('lineSmooth').nextElementSibling.textContent = s.lineSmooth;
   for (const id of ['wetInk', 'spin3d', 'sparkle', 'hotCorner', 'border', 'game', 'flame', 'burn']) $(id).classList.toggle('on', !!s[id]);
   $('intensity').value = Math.round(s.intensity * 100); $('intensity').nextElementSibling.textContent = `×${s.intensity}`;
   $('burnAmbient').value = Math.round(s.burnAmbient * 100); $('burnAmbient').nextElementSibling.textContent = Math.round(s.burnAmbient * 100) + '%';
@@ -100,6 +101,7 @@ $('brush').onchange = e => updateSettings({ brush: e.target.value });
 $('size').oninput = e => updateSettings({ size: Number(e.target.value) });
 $('fadeSeconds').oninput = e => updateSettings({ fadeSeconds: Number(e.target.value) });
 $('symmetry').onchange = e => updateSettings({ symmetry: Number(e.target.value) });
+$('lineSmooth').oninput = e => updateSettings({ lineSmooth: Number(e.target.value) });
 $('menuCorner').onchange = e => updateSettings({ menuCorner: e.target.value, hotCorner: true });
 for (const id of ['wetInk', 'spin3d', 'sparkle', 'hotCorner', 'border', 'game', 'flame', 'burn']) $(id).onclick = () => updateSettings({ [id]: !state.settings[id] });
 $('intensity').oninput = e => updateSettings({ intensity: clampIntensity(Number(e.target.value) / 100) });
@@ -259,7 +261,7 @@ async function snapCompositeCanvas(snap) {
   const ctx = c.getContext('2d'); ctx.drawImage(img, 0, 0);
   if (snap.camCorners) {
     const Hinv = invertHomography(computeHomography(snap.camCorners, CORNERS));
-    renderStrokes(ctx, c.width, c.height, snap.strokes, { background: null, xf: p => applyHomography(Hinv, p.x, p.y) });
+    renderStrokes(ctx, c.width, c.height, snap.strokes, { background: null, xf: p => applyHomography(Hinv, p.x, p.y), lineSmooth: snap.settings?.lineSmooth ?? 0 });
   }
   return c;
 }
@@ -491,7 +493,7 @@ function drawPreview() {
   }
   const pw = projPreview.clientWidth, ph = Math.round(pw / state.projAspect);
   if (pw && (projPreview.width !== pw || projPreview.height !== ph)) { projPreview.width = pw; projPreview.height = ph; }
-  renderStrokes(ppctx, pw, ph, state.strokes, { fadeSeconds: state.settings.fadeSeconds, now: performance.now() });
+  renderStrokes(ppctx, pw, ph, state.strokes, { fadeSeconds: state.settings.fadeSeconds, now: performance.now(), lineSmooth: state.settings.lineSmooth });
 }
 
 // ---------- manual corner dragging ----------

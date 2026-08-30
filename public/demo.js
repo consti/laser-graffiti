@@ -48,6 +48,11 @@ const fxSlider = document.createElement('input'); fxSlider.type = 'range'; fxSli
 const fxVal = document.createElement('span');
 fxSlider.oninput = () => apply({ intensity: Number(fxSlider.value) / 100 });
 fxWrap.append('fx', fxSlider, fxVal); tb.appendChild(fxWrap);
+const smWrap = document.createElement('label'); smWrap.className = 'fx'; smWrap.title = 'line smoothing';
+const smSlider = document.createElement('input'); smSlider.type = 'range'; smSlider.min = 0; smSlider.max = 10; smSlider.value = settings.lineSmooth;
+const smVal = document.createElement('span');
+smSlider.oninput = () => apply({ lineSmooth: Number(smSlider.value) });
+smWrap.append('smooth', smSlider, smVal); tb.appendChild(smWrap);
 const clearBtn = document.createElement('button'); clearBtn.textContent = 'clear'; clearBtn.onclick = () => { scene.clear(); if (settings.game) startGame(); }; tb.appendChild(clearBtn);
 
 function apply(patch) {
@@ -60,6 +65,7 @@ function apply(patch) {
 function syncUI() {
   colorsEl.querySelectorAll('.sw').forEach(b => b.classList.toggle('sel', b.dataset.color === settings.color));
   brushSel.value = settings.brush;
+  smSlider.value = settings.lineSmooth; smVal.textContent = settings.lineSmooth;
   fxSlider.value = Math.round(settings.intensity * 100); fxVal.textContent = `×${settings.intensity.toFixed(settings.intensity % 1 ? 2 : 0)}`;
   for (const [k] of toggles) {
     const on = k === 'fade' ? settings.fadeSeconds > 0 : k === 'symmetry' ? settings.symmetry > 1 : !!settings[k];
