@@ -36,6 +36,11 @@
   .snap button { padding: 2px 6px; font-size: 11px; }
   input[type=color] { width: 32px; height: 28px; padding: 0; border: 1px solid #444; border-radius: 5px; background: none; }
   a.home { color: #9ad; text-decoration: none; font-size: 12px; }
+  .advanced { display: none; }
+  body.adv .advanced { display: revert; }
+  body.adv label.advanced { display: flex; }
+  body.adv div.advanced.row { display: flex; }
+  .advToggle { display: flex; align-items: center; justify-content: flex-end; gap: 6px; color: #9ad; margin: 0; }
 </style>
 </head>
 <body>
@@ -45,12 +50,13 @@
     <div class="row"><div id="status" style="flex:1">Starting…</div><a class="home" href="/">← laser.consti.de</a></div>
   </div>
   <aside>
+    <label class="advToggle"><input type="checkbox" id="advanced"> show advanced options</label>
     <fieldset>
       <legend>1 · Camera</legend>
       <select id="camSel"></select>
       <div class="row" style="margin-top:6px">
         <button id="startBtn" class="primary">Start camera</button>
-        <label style="margin:0"><input type="checkbox" id="showMask"> show detection mask</label>
+        <label class="advanced" style="margin:0"><input type="checkbox" id="showMask"> show detection mask</label>
       </div>
       <div id="camInfo" class="hint"></div>
     </fieldset>
@@ -75,6 +81,8 @@
     <fieldset>
       <legend>4 · Detection</legend>
       <label>Laser color <select id="laserColor"><option value="g">green</option><option value="r">red</option></select></label>
+      <div class="hint">Thresholds are set by <b>Calibrate laser</b>; tick <i>show advanced options</i> to tune them by hand.</div>
+      <div class="advanced">
       <label>Min channel <input type="range" id="minG" min="60" max="255" value="150"><span class="v"></span></label>
       <label>Dominance <input type="range" id="minDelta" min="0" max="200" value="45"><span class="v"></span></label>
       <label>Min pixels <input type="range" id="minPixels" min="1" max="40" value="2"><span class="v"></span></label>
@@ -87,6 +95,7 @@
       <div class="hint">Anti feedback loop: strokes in the laser's colour (incl. the green parts of <i>rainbow</i>) are masked out of the
         detection, so the projected drawing can't be mistaken for the laser. Shown in blue with <i>show detection mask</i>.</div>
       <div class="hint">Reflections: the tracker keeps following the blob nearest to the previous position and prefers the brightest one; a new stroke only starts after the dot is seen in 2 consecutive frames.</div>
+      </div>
     </fieldset>
 
     <fieldset>
@@ -95,7 +104,7 @@
       <label>Brush <select id="brush"></select></label>
       <label>Brush size <input type="range" id="size" min="1" max="40" value="8"><span class="v"></span></label>
       <label>Line smoothing <input type="range" id="lineSmooth" min="0" max="10" value="2"><span class="v"></span></label>
-      <div class="hint">Smooths the drawn line itself (moving average + curved segments) — kills the zigzag of a jittery laser track
+      <div class="hint advanced">Smooths the drawn line itself (moving average + curved segments) — kills the zigzag of a jittery laser track
         without adding lag. <i>Position smoothing</i> in Detection filters the live position instead.</div>
       <label>Fade after (s, 0 = never) <input type="range" id="fadeSeconds" min="0" max="60" value="0"><span class="v"></span></label>
       <label>Mirror <select id="symmetry"><option value="1">off</option><option value="2">×2</option><option value="4">×4</option><option value="6">×6</option><option value="8">×8</option></select></label>
@@ -107,17 +116,17 @@
         <button id="game" data-toggle>tic-tac-toe</button>
         <button id="hotCorner" data-toggle>laser menu</button>
       </div>
-      <label>Menu corner <select id="menuCorner"><option value="tr">top right</option><option value="tl">top left</option><option value="br">bottom right</option><option value="bl">bottom left</option></select></label>
+      <label class="advanced">Menu corner <select id="menuCorner"><option value="tr">top right</option><option value="tl">top left</option><option value="br">bottom right</option><option value="bl">bottom left</option></select></label>
       <label>Effect intensity <input type="range" id="intensity" min="25" max="300" value="100"><span class="v"></span></label>
-      <div class="hint">Scales every effect: how much wet ink drips, how many sparks, how big the flames, how hot and how long the burn glows.</div>
+      <div class="hint advanced">Scales every effect: how much wet ink drips, how many sparks, how big the flames, how hot and how long the burn glows.</div>
       <div class="row" style="margin-top:6px">
         <button id="burn" data-toggle>🔥 burn into surface</button>
         <button id="scanSurface">Scan surface</button>
-        <label style="flex:1;margin:0">light <input type="range" id="burnAmbient" min="0" max="100" value="35"><span class="v"></span></label>
+        <label style="flex:1;margin:0">marks <input type="range" id="burnStrength" min="0" max="100" value="60"><span class="v"></span></label>
       </div>
-      <div class="hint" id="surfaceInfo">Burn: the projector lights the wall softly and your strokes are cut into it as black char with a white-hot → orange → ember edge, smoke and sparks.
-        <b>Scan surface</b> photographs the wall through the camera (projector blanked) and projects that texture back onto itself, so the scorch marks look like they are really in the surface. Needs calibration.</div>
-      <div class="row" style="margin-top:6px">
+      <div class="hint" id="surfaceInfo">Burn: strokes leave permanent scorch marks — a dim brown, soft-edged discoloured halo around an unlit core; the tip glows white-hot for a moment.
+        <b>Scan surface</b> photographs the wall through the camera (projector blanked) so the halo is textured with the wall itself and the marks look like they are in the material. Needs calibration.</div>
+      <div class="row advanced" style="margin-top:6px">
         <button id="border" data-toggle>border</button>
         <input type="color" id="borderColor" value="#ffffff" title="border color">
         <label style="flex:1;margin:0">width <input type="range" id="borderWidth" min="1" max="40" value="6"><span class="v"></span></label>
@@ -127,7 +136,7 @@
         <button id="clearBtn">Clear (c)</button>
         <button id="menuBtn">Toggle menu (m)</button>
       </div>
-      <div class="hint">Laser menu: hold the laser in the dashed ☰ circle (in the chosen corner of the projection) to open it; hover an item to select. <i>move menu</i> in the menu cycles the corner.</div>
+      <div class="hint advanced">Laser menu: hold the laser in the dashed ☰ circle (in the chosen corner of the projection) to open it; hover an item to select. <i>move menu</i> in the menu cycles the corner.</div>
       <canvas id="projPreview"></canvas>
     </fieldset>
 
@@ -138,7 +147,7 @@
       <div id="snapshots"></div>
     </fieldset>
 
-    <fieldset><legend>Log</legend><div id="log"></div></fieldset>
+    <fieldset class="advanced"><legend>Log</legend><div id="log"></div></fieldset>
   </aside>
 </div>
 <video id="video" playsinline muted style="display:none"></video>

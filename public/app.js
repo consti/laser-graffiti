@@ -61,6 +61,10 @@ for (const id of ['satWhite', 'roiOnly', 'showMask', 'ignoreProj']) {
   const upd = () => { params[id] = el.checked; localStorage.setItem('lg:' + id, el.checked ? '1' : '0'); };
   el.addEventListener('change', upd); upd();
 }
+$('advanced').checked = localStorage.getItem('lg:advanced') === '1';
+const applyAdvanced = () => document.body.classList.toggle('adv', $('advanced').checked);
+$('advanced').addEventListener('change', () => { localStorage.setItem('lg:advanced', $('advanced').checked ? '1' : '0'); applyAdvanced(); });
+applyAdvanced();
 $('laserColor').value = localStorage.getItem('lg:laserColor') || 'g';
 $('laserColor').addEventListener('change', e => localStorage.setItem('lg:laserColor', e.target.value));
 
@@ -86,7 +90,7 @@ function syncSettingsUI() {
   $('lineSmooth').value = s.lineSmooth; $('lineSmooth').nextElementSibling.textContent = s.lineSmooth;
   for (const id of ['wetInk', 'spin3d', 'sparkle', 'hotCorner', 'border', 'game', 'flame', 'burn']) $(id).classList.toggle('on', !!s[id]);
   $('intensity').value = Math.round(s.intensity * 100); $('intensity').nextElementSibling.textContent = `×${s.intensity}`;
-  $('burnAmbient').value = Math.round(s.burnAmbient * 100); $('burnAmbient').nextElementSibling.textContent = Math.round(s.burnAmbient * 100) + '%';
+  $('burnStrength').value = Math.round(s.burnStrength * 100); $('burnStrength').nextElementSibling.textContent = Math.round(s.burnStrength * 100) + '%';
   $('borderColor').value = s.borderColor;
   $('borderWidth').value = s.borderWidth; $('borderWidth').nextElementSibling.textContent = s.borderWidth;
 }
@@ -105,7 +109,7 @@ $('lineSmooth').oninput = e => updateSettings({ lineSmooth: Number(e.target.valu
 $('menuCorner').onchange = e => updateSettings({ menuCorner: e.target.value, hotCorner: true });
 for (const id of ['wetInk', 'spin3d', 'sparkle', 'hotCorner', 'border', 'game', 'flame', 'burn']) $(id).onclick = () => updateSettings({ [id]: !state.settings[id] });
 $('intensity').oninput = e => updateSettings({ intensity: clampIntensity(Number(e.target.value) / 100) });
-$('burnAmbient').oninput = e => updateSettings({ burnAmbient: Number(e.target.value) / 100, burn: true });
+$('burnStrength').oninput = e => updateSettings({ burnStrength: Number(e.target.value) / 100, burn: true });
 $('scanSurface').onclick = () => scanSurface().catch(e => { log('surface scan failed:', e.message); $('surfaceInfo').textContent = 'Surface scan failed: ' + e.message; });
 $('borderColor').oninput = e => updateSettings({ borderColor: e.target.value, border: true });
 $('borderWidth').oninput = e => updateSettings({ borderWidth: Number(e.target.value) });

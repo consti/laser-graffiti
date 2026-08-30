@@ -24,6 +24,8 @@ npm start            # http://localhost:8765  (landing page + demo; control app 
    size are learned from what the camera actually sees (a strong laser with a blown-out white core is detected too).
 5. Point the laser at the surface and draw. Keyboard: `c` clear, `z` undo, `m` toggle menu.
 
+The control window hides the tuning knobs (detection thresholds, border, menu corner, log) behind *show advanced options*.
+
 ## Laser menu
 
 A dashed ☰ circle sits in a corner of the projection (top-right by default; pick another corner in the control window or with
@@ -40,21 +42,22 @@ size, effect intensity (`fx −`/`fx +`), undo, snapshot, clear, and close. The 
 - **Mirror** – kaleidoscope ×2/×4/×6/×8 around the centre.
 - **Sparkle** – a particle trail follows the laser while drawing.
 - **Flame** – fire licks up from the freshly drawn part of the stroke (it keeps burning for ~2 s after the laser has passed).
-- **Burn** – see below.
+- **Burn** – permanent scorch marks on the wall, see below.
 - **Effect intensity** (slider in the control window, `fx −`/`fx +` in the laser menu, ×0.25…×3): one knob that scales every
   effect — how often and how far wet ink drips, how many sparks, how big and how many flames, how hot and how long a burn glows.
 
 ## Burn into the surface
 
-Burn mode makes strokes look scorched *into* the wall rather than painted onto it. A projector cannot project black, so the
-trick is to light the wall softly (the *light* slider) and cut the stroke out of that light: the char is unlit, a
-white‑hot → orange → dim‑red ember rim glows around it and cools over a few seconds (scaled by intensity), with smoke and
-sparks rising from the tip.
+Burn mode leaves *marks* on the wall instead of painting light onto it. A projector can only add light, so the trick is
+restraint: around each stroke only a dim, brownish, soft‑edged scorch halo is projected (heat discolouration outside,
+darker soot towards the middle), while the core itself gets no light at all and stays the natural, unlit wall — which reads
+as the darkest, charred part. The marks are permanent; only the tip glows white → orange → ember for a moment while you
+draw, with a few sparks and wisps of smoke. The *marks* slider sets how visible the scorch is; intensity scales the halo size.
 
-**Scan surface** takes it further: the projector is blanked, the camera photographs the wall, and the photo is warped through
-the inverse calibration homography into projector space and projected back onto the wall itself. The surface is then lit with
-its own texture (every brick and stain lands on itself), so the black scorch marks read as real damage to the material. The
-scan is kept in `localStorage`; without a scan a warm neutral light is used. Needs a projector calibration first.
+**Scan surface** makes the marks belong to *this* wall: the projector is blanked, the camera photographs the wall, and the
+photo is warped through the inverse calibration homography into projector space. The halo is then textured with the wall's
+own bricks, plaster and stains (browned), so the scorch looks like it is in the material rather than floating on it. The scan
+is kept in `localStorage`; without a scan a plain brown halo is used. Needs a projector calibration first.
 
 ## Tic-tac-toe, border, snapshots
 
@@ -69,8 +72,9 @@ scan is kept in `localStorage`; without a scan a warm neutral light is used. Nee
 ## Smooth lines
 
 Two sliders fight laser jitter. *Position smoothing* (Detection) low-pass filters the live position — cheap but adds lag.
-*Line smoothing* (Drawing, 0–10, default 2) smooths the drawn geometry instead: a moving average over up to N neighbouring
-points (ends pinned) plus quadratic curves through the segment midpoints. It applies live to everything on the wall, to the
+*Line smoothing* (Drawing, 0–10, default 2) smooths the drawn geometry instead: a Gaussian blur of the polyline along its own
+length (σ grows with the slider, independent of how many points the tracker produced; the ends stay pinned) plus quadratic
+curves through the segment midpoints. It applies live to everything on the wall, to the
 preview and to snapshots, and costs no lag.
 
 ## Reflections & robustness

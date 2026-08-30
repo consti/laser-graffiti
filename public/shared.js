@@ -9,7 +9,7 @@ export const DEFAULT_SETTINGS = {
   color: COLORS[0], brush: 'round', size: 8 /* per-mille of width */,
   fadeSeconds: 0, wetInk: false, spin3d: false, symmetry: 1, sparkle: false, hotCorner: true,
   border: false, borderColor: '#ffffff', borderWidth: 6 /* px at 1080p */, game: false,
-  menuCorner: 'tr' /* tr | tl | br | bl */, lineSmooth: 2 /* 0..10: geometric smoothing of the drawn line */, flame: false, burn: false, burnAmbient: 0.35 /* how brightly the surface is lit in burn mode */,
+  menuCorner: 'tr' /* tr | tl | br | bl */, lineSmooth: 2 /* 0..10: geometric smoothing of the drawn line */, flame: false, burn: false, burnStrength: 0.6 /* visibility of the scorch marks in burn mode */,
   intensity: 1 /* scales all effects: drips, sparks, flames, burn heat (INTENSITY_MIN..INTENSITY_MAX) */,
 };
 export const INTENSITY_MIN = 0.25, INTENSITY_MAX = 3;
@@ -127,20 +127,31 @@ export function withSymmetry(ctx, w, h, symmetry, fn) {
 }
 
 /**
- * Geometric line smoothing: moving average over up to `n` neighbours on each side (ends are pinned) — removes the
- * zigzag of a jittery laser track without the lag of filtering the live position. Returns the input when n is 0.
+ * Geometric line smoothing: Gaussian blur of the polyline along its own length. σ grows with `n` (0..10) and is measured
+ * in normalized width units, so the result does not depend on how densely the tracker delivered points. The ends are
+ * pinned (blend back to the raw point within 2σ of the ends). Cached per stroke; returns the input when n is 0.
  */
+const smoothCache = new WeakMap();
 export function smoothPts(pts, n) {
-  n = Math.round(n || 0);
+  n = Number(n) || 0;
   if (n <= 0 || pts.length < 3) return pts;
+  const c = smoothCache.get(pts);
+  if (c && c.n === n && c.len === pts.length && c.last === pts[pts.length - 1]) return c.out;
+  const sigma = 0.005 * n, reach = 3 * sigma, inv = -0.5 / (sigma * sigma);
+  const L = new Float64Array(pts.length);
+  for (let i = 1; i < pts.length; i++) L[i] = L[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+  const total = L[pts.length - 1];
   const out = new Array(pts.length);
   for (let i = 0; i < pts.length; i++) {
-    const k = Math.min(n, i, pts.length - 1 - i);          // shrink the window near the ends so they stay put
-    if (k === 0) { out[i] = pts[i]; continue; }
-    let x = 0, y = 0;
-    for (let j = i - k; j <= i + k; j++) { x += pts[j].x; y += pts[j].y; }
-    out[i] = { ...pts[i], x: x / (2 * k + 1), y: y / (2 * k + 1) };
+    let x = 0, y = 0, wsum = 0;
+    for (let j = i; j >= 0 && L[i] - L[j] <= reach; j--) { const d = L[i] - L[j], w = Math.exp(d * d * inv); x += pts[j].x * w; y += pts[j].y * w; wsum += w; }
+    for (let j = i + 1; j < pts.length && L[j] - L[i] <= reach; j++) { const d = L[j] - L[i], w = Math.exp(d * d * inv); x += pts[j].x * w; y += pts[j].y * w; wsum += w; }
+    x /= wsum; y /= wsum;
+    const edge = Math.min(L[i], total - L[i]) / (2 * sigma);        // 0 at the ends → keep the raw point there
+    const t = Math.min(1, edge);
+    out[i] = { ...pts[i], x: pts[i].x + (x - pts[i].x) * t, y: pts[i].y + (y - pts[i].y) * t };
   }
+  smoothCache.set(pts, { n, len: pts.length, last: pts[pts.length - 1], out });
   return out;
 }
 let curvy = false;   // set by drawStroke: polyline() uses quadratic curves through segment midpoints when smoothing is on
@@ -149,7 +160,7 @@ let curvy = false;   // set by drawStroke: polyline() uses quadratic curves thro
 export function drawStroke(ctx, w, h, s, from = 0, xf = null, smooth = 0) {
   let pts = xf ? s.pts.map(xf) : s.pts;
   if (!pts.length) return;
-  if (smooth > 0) { pts = smoothPts(pts, smooth); from = Math.max(0, from - Math.round(smooth) - 1); }
+  if (smooth > 0) { pts = smoothPts(pts, smooth); from = 0; }
   curvy = smooth > 0;
   const size = s.size * w;
   const P = i => [pts[i].x * w, pts[i].y * h];

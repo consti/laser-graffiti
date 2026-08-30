@@ -77,7 +77,6 @@ export class Scene {
   /** Full render into this.ctx (or another ctx/size for snapshots; `plain` skips menu/cursor/cal). */
   render(now = performance.now(), ctx = this.ctx, w = this.cv.width, h = this.cv.height, plain = false) {
     ctx.globalAlpha = 1; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h);
-    if (this.settings.burn && !this.cal) this.renderAmbient(ctx, w, h);
     if (this.cal && !plain) {
       if (this.cal.kind === 'marker') { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(this.cal.x * w, this.cal.y * h, this.cal.r * w, 0, 7); ctx.fill(); }
       if (this.cal.kind === 'text') {
@@ -211,22 +210,18 @@ export class Scene {
     ctx.restore();
   }
 
-  // ---------- burn: scorch marks into the (camera-scanned) surface ----------
-  coolMs() { return 6000 * this.fx(); }
-  /** Light the wall with its own scanned texture so the unlit (black) char actually reads as a dark mark on the surface. */
-  renderAmbient(ctx, w, h) {
-    const amb = Math.max(0, Math.min(1, this.settings.burnAmbient ?? 0.35));
-    if (amb <= 0) return;
-    if (this.surface) { ctx.globalAlpha = amb; ctx.drawImage(this.surface, 0, 0, w, h); ctx.globalAlpha = 1; }
-    else { ctx.fillStyle = `rgb(${Math.round(120 * amb)},${Math.round(105 * amb)},${Math.round(88 * amb)})`; ctx.fillRect(0, 0, w, h); }
-  }
+  // ---------- burn: scorch marks left on the (camera-scanned) surface ----------
+  // A projector can only add light, so the wall is never washed out: only a dim, brownish, soft-edged scorch halo is projected
+  // around the stroke, textured with the scan of the wall itself; the core stays unlit. The marks are permanent, only the
+  // tip glows for a moment while it is being burnt.
+  coolMs() { return 1500 * Math.sqrt(this.fx()); }
   spawnEmbers(p, s) {
     const k = this.fx();
     for (let i = 0; i < Math.round(2 * k); i++) {
       const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.2, v = (0.03 + Math.random() * 0.12) * Math.sqrt(k);
       this.sparks.push({ x: p.x, y: p.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, born: performance.now(), color: Math.random() < 0.3 ? '#fff3c0' : '#ff7a1a' });
     }
-    if (Math.random() < 0.5 * k) this.smoke.push({ x: p.x, y: p.y, vx: (Math.random() - 0.5) * 0.02, vy: -(0.03 + Math.random() * 0.04), r: s.size * 0.6,
+    if (Math.random() < 0.4 * k) this.smoke.push({ x: p.x, y: p.y, vx: (Math.random() - 0.5) * 0.02, vy: -(0.03 + Math.random() * 0.04), r: s.size * 0.6,
       grow: s.size * 1.2 * Math.sqrt(k), born: performance.now(), life: (1800 + Math.random() * 1500) * Math.sqrt(k), seed: Math.random() * 10 });
   }
   renderSmoke(ctx, w, h, now) {
@@ -234,66 +229,86 @@ export class Scene {
     for (const p of this.smoke) {
       const t = Math.max(0, (now - p.born) / p.life), r = Math.max(0.5, p.r * w);
       const g = ctx.createRadialGradient(p.x * w, p.y * h, 0, p.x * w, p.y * h, r);
-      g.addColorStop(0, `rgba(140,130,120,${0.22 * (1 - t) * (1 - t)})`); g.addColorStop(1, 'rgba(140,130,120,0)');
+      g.addColorStop(0, `rgba(140,130,120,${0.16 * (1 - t) * (1 - t)})`); g.addColorStop(1, 'rgba(140,130,120,0)');
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x * w, p.y * h, r, 0, 7); ctx.fill();
     }
   }
+  burnLayer(w, h) {
+    if (!this._burn || this._burn.width !== w || this._burn.height !== h) {
+      this._burn = document.createElement('canvas'); this._burn.width = w; this._burn.height = h;
+      this._burnCtx = this._burn.getContext('2d');
+    }
+    return this._burnCtx;
+  }
+  /** Draw the scorch outline of stroke s (ragged, width factor wf) as one path. */
+  scorchPath(ctx, w, h, s, pts, wf) {
+    const size = s.size * w, P = i => [pts[i].x * w, pts[i].y * h];
+    if (pts.length === 1) { ctx.beginPath(); ctx.arc(...P(0), size * wf * 0.5, 0, 7); ctx.fill(); return; }
+    ctx.lineWidth = size * wf; ctx.beginPath(); ctx.moveTo(...P(0));
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(...P(i));
+    ctx.stroke();
+    // ragged bites: deterministic per point so the mark doesn't crawl
+    for (let i = 0; i < pts.length; i += 2) {
+      const [x, y] = P(i), ang = rnd01(i, s.id) * Math.PI * 2, d = size * wf * (0.35 + 0.2 * rnd01(i, s.id + 1));
+      ctx.beginPath(); ctx.arc(x + Math.cos(ang) * d, y + Math.sin(ang) * d, size * wf * (0.08 + 0.14 * rnd01(i, s.id + 2)), 0, 7); ctx.fill();
+    }
+  }
   renderBurn(ctx, w, h, now) {
-    const cool = this.coolMs(), k = this.fx();
-    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    const strength = Math.max(0, Math.min(1, this.settings.burnStrength ?? 0.6)), k = this.fx(), cool = this.coolMs();
+    const L = this.burnLayer(w, h);
+    L.save(); L.globalCompositeOperation = 'source-over'; L.clearRect(0, 0, w, h);
+    L.lineCap = 'round'; L.lineJoin = 'round';
+    const drawAll = (wf, fill, blur) => {
+      L.fillStyle = fill; L.strokeStyle = fill; L.shadowColor = fill; L.shadowBlur = blur;
+      for (const s of this.strokes) {
+        const a = this.strokeAlpha(s, now); if (a <= 0 || !s.pts.length) continue;
+        L.globalAlpha = a;
+        const pts = smoothPts(s.pts, this.settings.lineSmooth);
+        withSymmetry(L, w, h, s.symmetry, () => this.scorchPath(L, w, h, s, pts, wf));
+      }
+      L.shadowBlur = 0; L.globalAlpha = 1;
+    };
+    // 1) soft outer halo (heat-discoloured zone) and denser inner soot ring → alpha mask
+    drawAll(5.5 * Math.sqrt(k), 'rgba(255,255,255,0.22)', 0.035 * w * Math.sqrt(k));
+    drawAll(3.0 * Math.sqrt(k), 'rgba(255,255,255,0.35)', 0.015 * w);
+    drawAll(1.7, 'rgba(255,255,255,0.75)', 0.006 * w);
+    // 2) texture the mask with the wall itself (if scanned) …
+    if (this.surface) { L.globalCompositeOperation = 'source-in'; L.drawImage(this.surface, 0, 0, w, h); }
+    // 3) … and discolour it: brown scorch, darker soot towards the core
+    L.globalCompositeOperation = 'source-atop';
+    L.fillStyle = this.surface ? 'rgba(150,85,30,0.6)' : 'rgba(120,70,28,1)'; L.fillRect(0, 0, w, h);
+    drawAll(1.3, 'rgba(50,25,8,0.85)', 0.005 * w);
+    // 4) the char core gets no light at all — it stays the natural, unlit wall and reads as the darkest part
+    L.globalCompositeOperation = 'destination-out';
+    drawAll(0.9, 'rgba(0,0,0,1)', 0.002 * w);
+    L.restore();
+    ctx.globalAlpha = strength; ctx.drawImage(this._burn, 0, 0); ctx.globalAlpha = 1;
+
+    // 5) the hot tip: white → orange → ember over coolMs, only on the freshest points
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
     for (const s of this.strokes) {
-      const a = this.strokeAlpha(s, now); if (a <= 0 || !s.pts.length) continue;
-      const size = s.size * w, pts = smoothPts(s.pts, this.settings.lineSmooth);
-      const P = i => [pts[i].x * w, pts[i].y * h];
-      const heatAt = i => Math.min(1, Math.max(0, 1 - (now - (pts[i].t ?? s.lastT)) / cool));            // 1 = white hot, 0 = cold
+      if (now - s.lastT > cool) continue;
+      const a = this.strokeAlpha(s, now); if (a <= 0) continue;
+      const size = s.size * w, pts = smoothPts(s.pts, this.settings.lineSmooth), P = i => [pts[i].x * w, pts[i].y * h];
       withSymmetry(ctx, w, h, s.symmetry, () => {
-        // 1) heat glow around the fresh part: wide, soft, orange → dim red as it cools
         for (let i = 1; i < pts.length; i++) {
-          const heat = Math.max(heatAt(i - 1), heatAt(i)); if (heat <= 0.02) continue;
+          const heat = Math.min(1, Math.max(0, 1 - (now - (pts[i].t ?? s.lastT)) / cool)); if (heat <= 0.02) continue;
           const [x0, y0] = P(i - 1), [x1, y1] = P(i);
-          ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = a * heat * 0.9;
-          ctx.shadowColor = `hsl(${18 + 25 * heat} 100% ${45 + 20 * heat}%)`; ctx.shadowBlur = size * (2 + 3 * heat) * Math.sqrt(k);
-          ctx.strokeStyle = `hsl(${15 + 20 * heat} 100% ${35 + 25 * heat}%)`; ctx.lineWidth = size * (0.8 + 0.8 * heat);
-          ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); ctx.restore();
-        }
-        // 2) ember rim: a thin glowing edge that stays dim red long after the heat is gone, brightest right at the front
-        ctx.save(); ctx.globalCompositeOperation = 'lighter';
-        for (let i = 1; i < pts.length; i++) {
-          const heat = heatAt(i), age = Math.max(0, now - (pts[i].t ?? s.lastT));
-          const [x0, y0] = P(i - 1), [x1, y1] = P(i);
-          const flicker = 0.85 + 0.15 * Math.sin(now / 60 + i * 1.7);
-          ctx.globalAlpha = a * Math.max(0.18, heat) * flicker;
-          ctx.strokeStyle = heat > 0.6 ? '#ffd27a' : `hsl(${8 + 20 * heat} 100% ${28 + 30 * heat}%)`;
-          ctx.lineWidth = size * (1.0 + 0.25 * heat) * Math.min(1, age / 250);
+          ctx.globalAlpha = a * heat * heat;
+          ctx.strokeStyle = `hsl(${20 + 25 * heat} 100% ${40 + 40 * heat}%)`; ctx.lineWidth = size * (0.5 + 0.4 * heat);
+          ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = size * 2 * heat * Math.sqrt(k);
           ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
         }
-        ctx.restore();
-        // 3) the char: one unlit (black) polyline cut over the ambient light, so only the rim's edge survives; the tip grows in over 250 ms
-        ctx.globalAlpha = a; ctx.strokeStyle = '#000'; ctx.fillStyle = '#000';
-        const charW = size * 0.9;
-        if (pts.length > 2) { ctx.lineWidth = charW; ctx.beginPath(); ctx.moveTo(...P(0)); for (let i = 1; i < pts.length - 1; i++) ctx.lineTo(...P(i)); ctx.stroke(); }
-        if (pts.length > 1) {
-          const n = pts.length - 1, grow = Math.min(1, Math.max(0, now - (pts[n].t ?? s.lastT)) / 250);
-          ctx.lineWidth = charW * (0.5 + 0.5 * grow); ctx.beginPath(); ctx.moveTo(...P(n - 1)); ctx.lineTo(...P(n)); ctx.stroke();
-        }
-        // ragged edge: a few deterministic scorch bites along the stroke
-        for (let i = 0; i < pts.length; i += 2) {
-          const [x, y] = P(i), ang = rnd01(i, s.id) * Math.PI * 2, d = charW * (0.35 + 0.2 * rnd01(i, s.id + 1));
-          ctx.beginPath(); ctx.arc(x + Math.cos(ang) * d, y + Math.sin(ang) * d, charW * (0.2 + 0.2 * rnd01(i, s.id + 2)), 0, 7); ctx.fill();
-        }
-        if (pts.length === 1) { const [x, y] = P(0); ctx.beginPath(); ctx.arc(x, y, charW / 2, 0, 7); ctx.fill(); }
-        // 4) white-hot tip while the laser is on the surface
-        const tipHeat = heatAt(pts.length - 1);
-        if (tipHeat > 0.97) {
-          const [x, y] = P(pts.length - 1);
-          ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = a;
-          const g = ctx.createRadialGradient(x, y, 0, x, y, size * 1.6 * Math.sqrt(k));
-          g.addColorStop(0, 'rgba(255,255,240,0.95)'); g.addColorStop(0.35, 'rgba(255,190,80,0.6)'); g.addColorStop(1, 'rgba(255,80,0,0)');
-          ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, size * 1.6 * Math.sqrt(k), 0, 7); ctx.fill(); ctx.restore();
+        const tip = Math.min(1, Math.max(0, 1 - (now - s.lastT) / 250));
+        if (tip > 0) {
+          const [x, y] = P(pts.length - 1), r = size * 1.4 * Math.sqrt(k);
+          const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+          g.addColorStop(0, `rgba(255,255,240,${0.95 * tip})`); g.addColorStop(0.4, `rgba(255,180,70,${0.6 * tip})`); g.addColorStop(1, 'rgba(255,80,0,0)');
+          ctx.globalAlpha = a; ctx.shadowBlur = 0; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
         }
       });
     }
-    ctx.globalAlpha = 1;
+    ctx.restore(); ctx.globalAlpha = 1;
     this.renderDrips(ctx, w, h, now);
   }
 
