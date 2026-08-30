@@ -9,7 +9,7 @@ export const DEFAULT_SETTINGS = {
   color: COLORS[0], brush: 'round', size: 8 /* per-mille of width */,
   fadeSeconds: 0, wetInk: false, spin3d: false, symmetry: 1, sparkle: false, hotCorner: true,
   border: false, borderColor: '#ffffff', borderWidth: 6 /* px at 1080p */, game: false,
-  flame: false, burn: false, burnAmbient: 0.35 /* how brightly the surface is lit in burn mode */,
+  menuCorner: 'tr' /* tr | tl | br | bl */, flame: false, burn: false, burnAmbient: 0.35 /* how brightly the surface is lit in burn mode */,
   intensity: 1 /* scales all effects: drips, sparks, flames, burn heat (INTENSITY_MIN..INTENSITY_MAX) */,
 };
 export const INTENSITY_MIN = 0.25, INTENSITY_MAX = 3;
@@ -67,10 +67,22 @@ export function invertHomography(H) {
 }
 
 // ---------- laser menu (normalized projector coords; both windows use the same layout) ----------
-export const HOT_CORNER = { x: 0.955, y: 0.08, r: 0.035 };   // r in width units
+export const MENU_CORNERS = ['tr', 'tl', 'br', 'bl'];
+export const MENU_CORNER_LABEL = { tr: 'top right', tl: 'top left', br: 'bottom right', bl: 'bottom left' };
 export const MENU_DWELL_MS = 650, HOT_DWELL_MS = 500;
+/** Hot-corner circle for the given corner (r in width units). */
+export function hotCorner(corner = 'tr') {
+  return { x: corner[1] === 'l' ? 0.045 : 0.955, y: corner[0] === 'b' ? 0.92 : 0.08, r: 0.035 };
+}
 
-export function menuLayout(aspect = 16 / 9) {
+export function menuLayout(aspect = 16 / 9, corner = 'tr') {
+  const { items, panel } = menuLayoutTR(aspect);
+  // keep the reading order; just slide the whole panel into the requested corner
+  const dx = corner[1] === 'l' ? 0.015 - panel.x : 0, dy = corner[0] === 'b' ? (1 - 0.03 - panel.h) - panel.y : 0;
+  const mv = o => ({ ...o, x: o.x + dx, y: o.y + dy });
+  return { items: items.map(mv), panel: mv(panel) };
+}
+function menuLayoutTR(aspect) {
   const items = [];
   const cols = 5, cw = 0.055, ch = cw * aspect * 0.8;  // roughly square cells in pixels
   const x0 = 0.985 - cols * cw - (cols - 1) * 0.01, gap = 0.01;
@@ -88,16 +100,17 @@ export function menuLayout(aspect = 16 / 9) {
   row([{ id: 'wetInk', label: 'wet ink' }, { id: 'spin3d', label: 'spin 3D' }, { id: 'fade', label: 'fade' }, { id: 'sparkle', label: 'sparkle' },
        { id: 'flame', label: '🔥 flame' }, { id: 'burn', label: 'burn' }, { id: 'border', label: 'border' }, { id: 'game', label: 'tic-tac-toe' }], 'toggle');
   row([{ id: 'symmetry', label: 'mirror' }, { id: 'size-', label: 'size −' }, { id: 'size+', label: 'size +' }, { id: 'fx-', label: 'fx −' }, { id: 'fx+', label: 'fx +' },
-       { id: 'undo', label: 'undo' }, { id: 'snapshot', label: '📸 snapshot' }, { id: 'clear', label: 'clear' }, { id: 'close', label: 'close' }], 'action');
+       { id: 'undo', label: 'undo' }, { id: 'snapshot', label: '📸 snapshot' }, { id: 'corner', label: 'move menu' }, { id: 'clear', label: 'clear' }, { id: 'close', label: 'close' }], 'action');
   const panel = { x: x0 - 0.02, y: 0.03, w: 0.985 - x0 + 0.03, h: y };
   return { items, panel };
 }
 export function hitMenu(layout, p) {
   return layout.items.find(it => p.x >= it.x && p.x <= it.x + it.w && p.y >= it.y && p.y <= it.y + it.h) || null;
 }
-export function inHotCorner(p, aspect) {
-  const dx = p.x - HOT_CORNER.x, dy = (p.y - HOT_CORNER.y) / aspect;
-  return dx * dx + dy * dy <= HOT_CORNER.r * HOT_CORNER.r;
+export function inHotCorner(p, aspect, corner = 'tr') {
+  const hc = hotCorner(corner);
+  const dx = p.x - hc.x, dy = (p.y - hc.y) / aspect;
+  return dx * dx + dy * dy <= hc.r * hc.r;
 }
 
 // ---------- stroke rendering ----------

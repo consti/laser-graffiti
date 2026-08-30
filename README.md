@@ -20,13 +20,14 @@ npm start            # http://localhost:8765  (landing page + demo; control app 
 3. *Auto-calibrate*: white markers are flashed into the projector's corners and located in the camera
    image (on/off flashing cancels ambient changes and moving people). Yellow corners on the camera
    preview can be dragged to fine-tune. Calibration is saved in `localStorage`.
-4. *Calibrate laser*: wave the laser inside the projection for 4 s. Channel/dominance thresholds and the dot
+4. *Calibrate laser*: a 3 s countdown is projected so you can aim, then wave the laser inside the projection for 4 s. Channel/dominance thresholds and the dot
    size are learned from what the camera actually sees (a strong laser with a blown-out white core is detected too).
 5. Point the laser at the surface and draw. Keyboard: `c` clear, `z` undo, `m` toggle menu.
 
 ## Laser menu
 
-A dashed ☰ circle sits in the top-right corner of the projection. Hold the laser in it for half a second to open
+A dashed ☰ circle sits in a corner of the projection (top-right by default; pick another corner in the control window or with
+*move menu* inside the menu). Hold the laser in it for half a second to open
 the menu; hover an item for ~0.65 s to activate it. It offers colours, brushes, effect toggles (incl. flame and burn), mirror mode,
 size, effect intensity (`fx −`/`fx +`), undo, snapshot, clear, and close. The menu closes itself after 8 s without a laser.
 

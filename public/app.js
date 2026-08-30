@@ -1,5 +1,5 @@
 import { CHANNEL, COLORS, BRUSHES, SYMMETRIES, DEFAULT_SETTINGS, MENU_DWELL_MS, HOT_DWELL_MS, clampIntensity,
-  computeHomography, applyHomography, invertHomography, renderStrokes, menuLayout, hitMenu, inHotCorner, cellAt } from './shared.js';
+  MENU_CORNERS, computeHomography, applyHomography, invertHomography, renderStrokes, menuLayout, hitMenu, inHotCorner, cellAt } from './shared.js';
 import { Scene } from './scene.js';
 import { TicTacToe } from './game.js';
 
@@ -75,6 +75,7 @@ function syncSettingsUI() {
   $('size').value = s.size; $('size').nextElementSibling.textContent = s.size;
   $('fadeSeconds').value = s.fadeSeconds; $('fadeSeconds').nextElementSibling.textContent = s.fadeSeconds;
   $('symmetry').value = s.symmetry;
+  $('menuCorner').value = s.menuCorner;
   for (const id of ['wetInk', 'spin3d', 'sparkle', 'hotCorner', 'border', 'game', 'flame', 'burn']) $(id).classList.toggle('on', !!s[id]);
   $('intensity').value = Math.round(s.intensity * 100); $('intensity').nextElementSibling.textContent = `×${s.intensity}`;
   $('burnAmbient').value = Math.round(s.burnAmbient * 100); $('burnAmbient').nextElementSibling.textContent = Math.round(s.burnAmbient * 100) + '%';
@@ -92,6 +93,7 @@ $('brush').onchange = e => updateSettings({ brush: e.target.value });
 $('size').oninput = e => updateSettings({ size: Number(e.target.value) });
 $('fadeSeconds').oninput = e => updateSettings({ fadeSeconds: Number(e.target.value) });
 $('symmetry').onchange = e => updateSettings({ symmetry: Number(e.target.value) });
+$('menuCorner').onchange = e => updateSettings({ menuCorner: e.target.value, hotCorner: true });
 for (const id of ['wetInk', 'spin3d', 'sparkle', 'hotCorner', 'border', 'game', 'flame', 'burn']) $(id).onclick = () => updateSettings({ [id]: !state.settings[id] });
 $('intensity').oninput = e => updateSettings({ intensity: clampIntensity(Number(e.target.value) / 100) });
 $('burnAmbient').oninput = e => updateSettings({ burnAmbient: Number(e.target.value) / 100, burn: true });
@@ -289,7 +291,7 @@ function handleMenu(p, now) {
   if (p) m.lastLaser = now;
   if (!m.open) {
     if (!state.settings.hotCorner) return false;
-    if (p && inHotCorner(p, state.projAspect)) {
+    if (p && inHotCorner(p, state.projAspect, state.settings.menuCorner)) {
       if (!m.hotSince) m.hotSince = now;
       m.hotProgress = Math.min(1, (now - m.hotSince) / HOT_DWELL_MS);
       sendMenu();
@@ -306,7 +308,7 @@ function handleMenu(p, now) {
     return true;
   }
   send({ t: 'cursor', x: p.x, y: p.y });
-  const it = hitMenu(menuLayout(state.projAspect), p);
+  const it = hitMenu(menuLayout(state.projAspect, state.settings.menuCorner), p);
   const id = it?.id ?? null;
   if (id !== m.hover) { m.hover = id; m.hoverSince = now; m.progress = 0; }
   else if (id) {
@@ -331,6 +333,7 @@ function activateMenuItem(it) {
       if (it.value === 'size+') updateSettings({ size: Math.min(60, Math.round(s.size * 1.5)) }, { fromMenu: true });
       if (it.value === 'fx-') updateSettings({ intensity: clampIntensity(s.intensity / 1.5) }, { fromMenu: true });
       if (it.value === 'fx+') updateSettings({ intensity: clampIntensity(s.intensity * 1.5) }, { fromMenu: true });
+      if (it.value === 'corner') updateSettings({ menuCorner: MENU_CORNERS[(MENU_CORNERS.indexOf(s.menuCorner) + 1) % MENU_CORNERS.length] }, { fromMenu: true });
       if (it.value === 'undo') undo();
       if (it.value === 'clear') clearAll();
       if (it.value === 'snapshot') { takeSnapshot(); setMenuOpen(false); }
@@ -473,7 +476,9 @@ function drawPreview() {
   if (state.laserCal) {
     pctx.fillStyle = 'rgba(0,0,0,.6)'; pctx.fillRect(0, 0, cw, 40);
     pctx.fillStyle = '#fff'; pctx.font = '16px system-ui'; pctx.textBaseline = 'middle';
-    pctx.fillText(`Laser calibration: wave the laser inside the projection… ${Math.max(0, (state.laserCal.until - performance.now()) / 1000).toFixed(1)}s · ${state.laserCal.samples.length} samples`, 12, 20);
+    const lc = state.laserCal, t = performance.now();
+    pctx.fillText(t < lc.startAt ? `Laser calibration starts in ${Math.ceil((lc.startAt - t) / 1000)}… point the laser at the projection`
+      : `Laser calibration: wave the laser inside the projection… ${Math.max(0, (lc.until - t) / 1000).toFixed(1)}s · ${lc.samples.length} samples`, 12, 20);
   }
   const pw = projPreview.clientWidth, ph = Math.round(pw / state.projAspect);
   if (pw && (projPreview.width !== pw || projPreview.height !== ph)) { projPreview.width = pw; projPreview.height = ph; }
@@ -645,10 +650,19 @@ async function scanSurface() {
 // ---------- laser calibration: learn thresholds from the actual laser ----------
 $('laserCalBtn').onclick = () => {
   if (!stream) return status('Start the camera first.');
-  state.laserCal = { until: performance.now() + 4000, samples: [] };
-  log('laser calibration: wave the laser inside the projection area for 4 s');
+  const COUNTDOWN = 3000, DURATION = 4000;
+  state.laserCal = { startAt: performance.now() + COUNTDOWN, until: performance.now() + COUNTDOWN + DURATION, samples: [], shown: null };
+  log('laser calibration: starts in 3 s — point the laser at the projection, then wave it around for 4 s');
 };
 function laserCalStep(now) {
+  const lc = state.laserCal;
+  if (now < lc.startAt) {                      // countdown: big number on the projector, text in the control window
+    const n = Math.ceil((lc.startAt - now) / 1000);
+    if (lc.shown !== n) { lc.shown = n; send({ t: 'cal', kind: 'text', big: String(n), text: 'Point the laser at the wall — calibration starts soon' }); }
+    status(`Laser calibration starts in ${n}… point the laser at the projection`);
+    return;
+  }
+  if (lc.shown !== 'go') { lc.shown = 'go'; send({ t: 'cal', kind: 'text', text: 'Wave the laser around inside the projection…' }); }
   const w = proc.width, h = proc.height, data = pctxProc.getImageData(0, 0, w, h).data;
   const green = $('laserColor').value === 'g', roi = state.roi;
   // find the most laser-like pixel in the frame without thresholds
@@ -676,9 +690,9 @@ function laserCalStep(now) {
       state.laserCal.samples.push({ c, dom, n, white });
     }
   }
-  status(`Laser calibration… ${state.laserCal.samples.length} samples`);
-  if (now < state.laserCal.until) return;
-  const S = state.laserCal.samples; state.laserCal = null;
+  status(`Laser calibration… ${((lc.until - now) / 1000).toFixed(1)}s · ${lc.samples.length} samples`);
+  if (now < lc.until) return;
+  const S = lc.samples; state.laserCal = null; send({ t: 'cal', kind: 'off' });
   if (S.length < 10) { $('calInfo').textContent = `Laser calibration failed: laser not seen (${S.length} samples). Point it inside the projection area.`; log('laser calibration failed'); return; }
   const q = (arr, p) => arr.slice().sort((a, b) => a - b)[Math.floor(p * (arr.length - 1))];
   const c20 = q(S.map(s => s.c), 0.2), dom20 = q(S.map(s => s.dom), 0.2), nMed = q(S.map(s => s.n), 0.5), nMax = q(S.map(s => s.n), 0.95), whiteMed = q(S.map(s => s.white), 0.5);

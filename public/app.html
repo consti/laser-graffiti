@@ -69,7 +69,7 @@
         <button id="calReset">Reset</button>
       </div>
       <div class="hint"><b>Projector:</b> flashes markers into the corners; drag the yellow corners afterwards to fine-tune.
-        <b>Laser:</b> wave the laser around inside the projection for 4 s — thresholds and dot size are learned from it. <span id="calInfo"></span></div>
+        <b>Laser:</b> after a 3 s countdown (shown on the projector), wave the laser around inside the projection for 4 s — thresholds and dot size are learned from it. <span id="calInfo"></span></div>
     </fieldset>
 
     <fieldset>
@@ -101,6 +101,7 @@
         <button id="game" data-toggle>tic-tac-toe</button>
         <button id="hotCorner" data-toggle>laser menu</button>
       </div>
+      <label>Menu corner <select id="menuCorner"><option value="tr">top right</option><option value="tl">top left</option><option value="br">bottom right</option><option value="bl">bottom left</option></select></label>
       <label>Effect intensity <input type="range" id="intensity" min="25" max="300" value="100"><span class="v"></span></label>
       <div class="hint">Scales every effect: how much wet ink drips, how many sparks, how big the flames, how hot and how long the burn glows.</div>
       <div class="row" style="margin-top:6px">
@@ -120,7 +121,7 @@
         <button id="clearBtn">Clear (c)</button>
         <button id="menuBtn">Toggle menu (m)</button>
       </div>
-      <div class="hint">Laser menu: hold the laser in the dashed ☰ circle (top-right of the projection) to open it; hover an item to select.</div>
+      <div class="hint">Laser menu: hold the laser in the dashed ☰ circle (in the chosen corner of the projection) to open it; hover an item to select. <i>move menu</i> in the menu cycles the corner.</div>
       <canvas id="projPreview"></canvas>
     </fieldset>
 

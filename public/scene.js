@@ -1,5 +1,5 @@
 // Scene: the drawing surface renderer shared by the projector window, the landing-page demo and snapshots.
-import { DEFAULT_SETTINGS, HOT_CORNER, menuLayout, drawStroke, withSymmetry, boardGeometry } from './shared.js';
+import { DEFAULT_SETTINGS, hotCorner, menuLayout, drawStroke, withSymmetry, boardGeometry } from './shared.js';
 
 const rnd01 = (i, k) => { const s = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453; return s - Math.floor(s); };
 
@@ -80,6 +80,11 @@ export class Scene {
     if (this.settings.burn && !this.cal) this.renderAmbient(ctx, w, h);
     if (this.cal && !plain) {
       if (this.cal.kind === 'marker') { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(this.cal.x * w, this.cal.y * h, this.cal.r * w, 0, 7); ctx.fill(); }
+      if (this.cal.kind === 'text') {
+        ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        if (this.cal.big) { ctx.font = `bold ${Math.round(0.35 * h)}px system-ui, sans-serif`; ctx.fillText(this.cal.big, w / 2, h * 0.45); }
+        if (this.cal.text) { ctx.font = `${Math.round(0.05 * h)}px system-ui, sans-serif`; ctx.fillText(this.cal.text, w / 2, h * (this.cal.big ? 0.75 : 0.5), w * 0.9); }
+      }
       return;
     }
     if (this.game && this.settings.game) this.renderBoard(ctx, w, h, now);
@@ -325,7 +330,8 @@ export class Scene {
   renderMenu(ctx, w, h, now) {
     const aspect = w / h, menu = this.menu, settings = this.settings;
     if (settings.hotCorner && !menu.open) {
-      const hx = HOT_CORNER.x * w, hy = HOT_CORNER.y * h, r = HOT_CORNER.r * w;
+      const hc = hotCorner(settings.menuCorner);
+      const hx = hc.x * w, hy = hc.y * h, r = hc.r * w;
       ctx.globalAlpha = 0.35; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.setLineDash([6, 6]);
       ctx.beginPath(); ctx.arc(hx, hy, r, 0, 7); ctx.stroke(); ctx.setLineDash([]);
       ctx.font = `${Math.round(r * 0.9)}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff'; ctx.fillText('☰', hx, hy);
@@ -333,7 +339,7 @@ export class Scene {
       ctx.globalAlpha = 1;
     }
     if (!menu.open) return;
-    const { items, panel } = menuLayout(aspect);
+    const { items, panel } = menuLayout(aspect, settings.menuCorner);
     ctx.fillStyle = 'rgba(20,20,28,0.88)';
     ctx.beginPath(); ctx.roundRect(panel.x * w, panel.y * h, panel.w * w, panel.h * h, 0.012 * w); ctx.fill();
     for (const it of items) {
