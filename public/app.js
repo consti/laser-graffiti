@@ -1,5 +1,5 @@
 import { CHANNEL, COLORS, BRUSHES, SYMMETRIES, DEFAULT_SETTINGS, MENU_DWELL_MS, HOT_DWELL_MS, clampIntensity,
-  MENU_CORNERS, computeHomography, applyHomography, invertHomography, renderStrokes, menuLayout, hitMenu, inHotCorner, cellAt } from './shared.js';
+  MENU_CORNERS, computeHomography, applyHomography, invertHomography, renderStrokes, drawStroke, menuLayout, hitMenu, inHotCorner, cellAt } from './shared.js';
 import { Scene } from './scene.js';
 import { TicTacToe } from './game.js';
 
@@ -12,12 +12,16 @@ const proc = document.createElement('canvas');            // downscaled processi
 const pctxProc = proc.getContext('2d', { willReadFrequently: true });
 const maskCanvas = document.createElement('canvas');
 const mctx = maskCanvas.getContext('2d');
+const projMaskCv = document.createElement('canvas');        // what we are projecting, rendered small in projector space
+const pmctx = projMaskCv.getContext('2d', { willReadFrequently: true });
+const PROJ_MASK_W = 320;
 
 const PROC_W = 480;
 const CORNERS = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: 1 }];
 
 const state = {
   H: null, Hinv: null, camCorners: null, roi: null,
+  projLUT: null, projMask: null,   // camera pixel -> projector-mask pixel; mask of projected laser-coloured strokes
   strokes: [], strokeId: 0, current: null, lastSeen: 0, smoothPt: null,
   settings: { ...DEFAULT_SETTINGS },
   projAspect: 16 / 9, calibrating: false, laserCal: null,
@@ -29,7 +33,10 @@ const state = {
   snapshots: [],
   surface: localStorage.getItem('lg:surface') || null,   // camera scan of the wall in projector space (burn mode)
 };
-window.lg = state; window.lgDebug = { emit: (x, y) => emitPoint(x, y), end: () => endStroke(), snapshot: () => takeSnapshot() };
+window.lg = state; window.lgDebug = { emit: (x, y) => emitPoint(x, y), end: () => endStroke(), snapshot: () => takeSnapshot(),
+  // testing without a camera: pretend the camera frame is w×h and calibrate with the given camera corners
+  fakeCam: (w, h, corners = CORNERS) => { proc.width = w; proc.height = h; setHomography(computeHomography(corners, CORNERS), corners); },
+  projMask: () => updateProjMask() };
 
 const log = (...a) => { const el = $('log'); el.textContent = `${new Date().toLocaleTimeString()} ${a.join(' ')}\n` + el.textContent; console.log(...a); };
 const status = s => $('status').textContent = s;
@@ -47,7 +54,7 @@ for (const id of rangeEls) {
   el.addEventListener('input', upd); upd();
 }
 function setParam(id, v) { $(id).value = v; $(id).dispatchEvent(new Event('input')); }
-for (const id of ['satWhite', 'roiOnly', 'showMask']) {
+for (const id of ['satWhite', 'roiOnly', 'showMask', 'ignoreProj']) {
   const el = $(id);
   const saved = localStorage.getItem('lg:' + id);
   if (saved != null) el.checked = saved === '1';
@@ -147,7 +154,7 @@ $('openProj').onclick = async () => {
 };
 bc.onmessage = ({ data: m }) => {
   if (m.t === 'proj:hello') { send({ t: 'sync', strokes: state.strokes, settings: state.settings, game: state.game.state(), surface: state.surface }); log('projector window connected'); }
-  if (m.t === 'proj:size') { state.projAspect = m.w / m.h; $('projInfo').textContent = `Projector canvas: ${m.w}×${m.h}`; }
+  if (m.t === 'proj:size') { const a = m.w / m.h; if (Math.abs(a - state.projAspect) > 1e-3) { state.projAspect = a; buildRoi(); } $('projInfo').textContent = `Projector canvas: ${m.w}×${m.h}`; }
 };
 send({ t: 'hello' });
 
@@ -347,10 +354,12 @@ function activateMenuItem(it) {
 function detectBlobs(data, w, h) {
   const green = $('laserColor').value === 'g';
   const minC = params.minG, minDelta = params.minDelta, roi = params.roiOnly ? state.roi : null, satW = params.satWhite;
+  const pm = params.ignoreProj ? updateProjMask() : null;
   const xs = [], ys = [], ws = [];
   const mask = params.showMask ? mctx.createImageData(w, h) : null;
   for (let i = 0, j = 0; i < w * h; i++, j += 4) {
     if (roi && !roi[i]) continue;
+    if (pm && pm[i]) { if (mask) { mask.data[j + 2] = 255; mask.data[j + 3] = 120; } continue; }   // our own projected stroke
     const r = data[j], g = data[j + 1], b = data[j + 2];
     const c = green ? g : r;
     const dom = green ? g - Math.max(r, b) : r - Math.max(g, b);
@@ -509,14 +518,50 @@ function setHomography(H, camCorners) {
   buildRoi();
 }
 function buildRoi() {
-  if (!state.H || !proc.width) { state.roi = null; return; }
+  if (!state.H || !proc.width) { state.roi = null; state.projLUT = null; state.projMask = null; return; }
   const w = proc.width, h = proc.height, m = 0.01;
-  const roi = new Uint8Array(w * h);
+  const mw = PROJ_MASK_W, mh = Math.max(1, Math.round(mw / state.projAspect));
+  projMaskCv.width = mw; projMaskCv.height = mh;
+  const roi = new Uint8Array(w * h), lut = new Int32Array(w * h).fill(-1);
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const p = applyHomography(state.H, (x + 0.5) / w, (y + 0.5) / h);
-    if (p.x >= -m && p.x <= 1 + m && p.y >= -m && p.y <= 1 + m) roi[y * w + x] = 1;
+    if (p.x >= -m && p.x <= 1 + m && p.y >= -m && p.y <= 1 + m) {
+      roi[y * w + x] = 1;
+      const mx = Math.min(mw - 1, Math.max(0, Math.floor(p.x * mw))), my = Math.min(mh - 1, Math.max(0, Math.floor(p.y * mh)));
+      lut[y * w + x] = my * mw + mx;
+    }
   }
-  state.roi = roi;
+  state.roi = roi; state.projLUT = lut; state.projMask = new Uint8Array(w * h);
+}
+
+/**
+ * Feedback-loop guard: render what the projector is showing (dilated) in projector space, keep only the pixels whose colour
+ * would pass the laser test, and warp that into camera space. Candidate pixels on such a spot are ignored.
+ * The freshest 400 ms of the current stroke are left out — that is where the real laser dot is.
+ */
+function updateProjMask() {
+  if (!state.projLUT || !state.strokes.length) return null;
+  const now = performance.now(), mw = projMaskCv.width, mh = projMaskCv.height;
+  pmctx.globalAlpha = 1; pmctx.fillStyle = '#000'; pmctx.fillRect(0, 0, mw, mh);
+  const dilate = 2.4, minPx = 5 / mw;                              // generous: camera blur + calibration error
+  for (const st of state.strokes) {
+    let pts = st.pts;
+    if (st === state.current) pts = pts.filter(p => now - (p.t ?? st.lastT) > 400);
+    if (!pts.length) continue;
+    const brush = st.brush === 'rainbow' ? 'rainbow' : 'round';
+    drawStroke(pmctx, mw, mh, { ...st, pts, brush, size: Math.max(minPx, st.size * dilate) });
+  }
+  const d = pmctx.getImageData(0, 0, mw, mh).data;
+  const green = $('laserColor').value === 'g', minC = params.minG * 0.5, minDelta = params.minDelta * 0.5;
+  const laserLike = new Uint8Array(mw * mh);
+  for (let i = 0, j = 0; i < mw * mh; i++, j += 4) {
+    const r = d[j], g = d[j + 1], b = d[j + 2];
+    const c = green ? g : r, dom = green ? g - Math.max(r, b) : r - Math.max(g, b);
+    if (c >= minC && dom >= minDelta) laserLike[i] = 1;
+  }
+  const lut = state.projLUT, pm = state.projMask;
+  for (let i = 0; i < pm.length; i++) { const k = lut[i]; pm[i] = k >= 0 ? laserLike[k] : 0; }
+  return pm;
 }
 function saveCal() { localStorage.setItem('lg:cal', JSON.stringify(state.camCorners)); }
 function loadCal() {

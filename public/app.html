@@ -83,6 +83,9 @@
       <label>Tracking radius <input type="range" id="trackR" min="10" max="200" value="60"><span class="v"></span></label>
       <label><input type="checkbox" id="satWhite"> also accept saturated white core</label>
       <label><input type="checkbox" id="roiOnly" checked> only inside projection area</label>
+      <label><input type="checkbox" id="ignoreProj" checked> ignore our own projected strokes (anti feedback loop)</label>
+      <div class="hint">Anti feedback loop: strokes in the laser's colour (incl. the green parts of <i>rainbow</i>) are masked out of the
+        detection, so the projected drawing can't be mistaken for the laser. Shown in blue with <i>show detection mask</i>.</div>
       <div class="hint">Reflections: the tracker keeps following the blob nearest to the previous position and prefers the brightest one; a new stroke only starts after the dot is seen in 2 consecutive frames.</div>
     </fieldset>
 

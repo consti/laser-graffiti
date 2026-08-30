@@ -80,8 +80,14 @@ Keep the control window visible (it can be small) — Chrome throttles occluded 
 
 Frames are downscaled to 480px, pixels with a dominant green (or red) channel are collected, and a
 weighted centroid is taken around the brightest candidate. Tune *Min channel* / *Dominance* using
-*show detection mask*. Avoid drawing in the same colour as the laser or the camera sees the projected
-stroke as a laser (feedback loop).
+*show detection mask*.
+
+**Anti feedback loop.** The projected drawing itself can look like the laser to the camera (a green stroke, or the green parts
+of *rainbow*). The control window therefore renders what is being projected into a small projector-space canvas every frame,
+keeps only the pixels whose colour would pass the laser test, warps that through the calibration into camera space and
+ignores candidate pixels there (blue in *show detection mask*). Strokes in other colours are not masked, so you can draw over
+them; the freshest 400 ms of the stroke being drawn are excluded because that is where the real laser dot is. Toggle with
+*ignore our own projected strokes*. Particle effects (drips, sparks, flames) are not part of the mask.
 
 ## Files
 
