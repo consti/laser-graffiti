@@ -7,7 +7,20 @@ maps it into projector coordinates via a calibrated homography, and the projecto
 [laser.consti.de/app.html](https://laser.consti.de/app.html).
 
 ▶ [Watch how it works (43 s)](https://laser.consti.de/media/howitworks.mp4) · inspired by
-[this video](https://www.youtube.com/watch?v=DKbtTPYZEig).
+[this video](https://www.youtube.com/watch?v=DKbtTPYZEig) — see the backstory below.
+
+## Backstory
+
+The inspiration came from mzeltner (Michael Zeltner) and oneup (Florian Hufsky) of
+[Graffiti Research Lab Vienna](https://graffitiresearchlab.at/), who around 2007 built their own laser
+marker and tagged buildings across Vienna with it. They in turn were inspired by the original
+[Graffiti Research Lab](https://graffitiresearchlab.com/) in New York and its
+[L.A.S.E.R. Tag](https://graffitiresearchlab.com/blog/projects/laser-tag/#video) project — the same idea:
+a camera, a projector, and a laser pointer as the pen, writ large on the side of a building. There's a
+lovely video of [Bre Pettis talking with Michi about Laser Tag in Vienna](https://youtu.be/isfrCIhQ5HE).
+
+This project is a from-scratch reimplementation of that idea for the browser — no Processing, no install,
+just a laptop, a webcam and a projector.
 
 ## Run
 
