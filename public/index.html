@@ -71,6 +71,10 @@
   .video-wrap { margin: 56px auto 0; max-width: 960px; border-radius: 16px; overflow: hidden; border: 1px solid #2a2a38;
     box-shadow: 0 0 0 1px rgba(255,255,255,.04), 0 40px 100px rgba(0,0,0,.7), 0 0 80px rgba(255,45,149,.15); background: #000; }
   .video-wrap video { display: block; width: 100%; aspect-ratio: 16/9; max-height: 80vh; background: #000; }
+  .video-wrap.yt { margin: 28px 0; }
+  .video-wrap.yt iframe { display: block; width: 100%; aspect-ratio: 16/9; border: 0; background: #000; }
+  .story { color: #c8c8da; max-width: 760px; margin: 0 0 18px; }
+  .story a { color: var(--cyan); text-decoration: underline; text-underline-offset: 3px; }
   .inspo { color: #8c8ca0; font-size: 15px; margin: 18px auto 0; max-width: 700px; }
   .inspo a { color: #c9c9dc; text-decoration: underline; text-underline-offset: 3px; }
   .inspo a:hover { color: #fff; }
@@ -128,7 +132,7 @@
       Your browser doesn't support embedded video — <a href="/media/howitworks.mp4">download the clip</a>.
     </video>
   </div>
-  <p class="inspo">Inspired by <a href="https://www.youtube.com/watch?v=DKbtTPYZEig" rel="noopener">this video</a> — laser tagging buildings with a projector, done years ago and still magical.</p>
+  <p class="inspo">Inspired by <a href="https://www.youtube.com/watch?v=DKbtTPYZEig" rel="noopener">this video</a> — laser tagging buildings with a projector, done years ago and still magical. <a href="#backstory">Read the backstory ↓</a></p>
 </header>
 
 <section class="wrap">
@@ -166,6 +170,24 @@
     <li>Works with green or red lasers</li>
     <li>Zero dependencies, MIT-licensed, <a href="https://github.com/consti/laser-graffiti">open source</a></li>
   </ul>
+</section>
+
+<section class="wrap" id="backstory">
+  <h2>The backstory</h2>
+  <p class="story">The inspiration came from <strong>mzeltner</strong> (Michael Zeltner) and <strong>oneup</strong> (Florian Hufsky)
+    of <a href="https://graffitiresearchlab.at/" rel="noopener">Graffiti Research Lab Vienna</a>, who around 2007 built their own
+    laser marker and tagged buildings across Vienna with it. They in turn were inspired by the original
+    <a href="https://graffitiresearchlab.com/" rel="noopener">Graffiti Research Lab</a> in New York and its
+    <a href="https://graffitiresearchlab.com/blog/projects/laser-tag/#video" rel="noopener">L.A.S.E.R.&nbsp;Tag</a> project —
+    the same idea: a camera, a projector, and a laser pointer as the pen, writ large on the side of a building.</p>
+  <p class="story">Here's Bre Pettis talking with Michi about Laser Tag in Vienna:</p>
+  <div class="video-wrap yt">
+    <iframe src="https://www.youtube-nocookie.com/embed/isfrCIhQ5HE" title="Laser Graffiti — Laser Tag with GRL Vienna"
+      loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+      allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+  </div>
+  <p class="story">This project is a from-scratch reimplementation of that idea for the browser — no Processing, no install,
+    just a laptop, a webcam and a projector.</p>
 </section>
 
 <section class="wrap">
