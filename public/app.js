@@ -1,5 +1,5 @@
 import { CHANNEL, COLORS, BRUSHES, SYMMETRIES, DEFAULT_SETTINGS, MENU_DWELL_MS, HOT_DWELL_MS, clampIntensity,
-  MENU_CORNERS, computeHomography, applyHomography, invertHomography, renderStrokes, drawStroke, menuLayout, hitMenu, inHotCorner, cellAt } from './shared.js';
+  MENU_CORNERS, computeHomography, applyHomography, invertHomography, renderStrokes, drawStroke, menuLayout, hitMenu, inHotCorner, cellAt, drawCornerMarker } from './shared.js';
 import { Scene } from './scene.js';
 import { TicTacToe } from './game.js';
 
@@ -18,9 +18,10 @@ const PROJ_MASK_W = 320;
 
 const PROC_W = 480;
 const CORNERS = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: 1 }];
+const DEFAULT_CAM_CORNERS = [{ x: 0.2, y: 0.2 }, { x: 0.8, y: 0.2 }, { x: 0.8, y: 0.8 }, { x: 0.2, y: 0.8 }];   // until calibrated or dragged
 
 const state = {
-  H: null, Hinv: null, camCorners: null, roi: null,
+  H: null, Hinv: null, camCorners: null, roi: null, calDefault: false,   // calDefault: corners are still the launch defaults
   projLUT: null, projMask: null,   // camera pixel -> projector-mask pixel; mask of projected laser-coloured strokes
   strokes: [], strokeId: 0, current: null, lastSeen: 0, smoothPt: null,
   settings: { ...DEFAULT_SETTINGS },
@@ -460,8 +461,9 @@ function loop() {
       if (state.current && now - state.lastSeen > 200) endStroke();
     }
     const extra = blobs.length > 1 ? ` (+${blobs.length - 1} other blob${blobs.length > 2 ? 's' : ''})` : '';
-    if (det) status(`Laser at cam (${det.x.toFixed(0)},${det.y.toFixed(0)}) ${det.n}px${extra}${state.H ? '' : ' — not calibrated'}${state.menu.open ? ' · MENU' : ''} · ${state.fps.toFixed(0)} fps`);
-    else status(`${blobs.length ? `blob rejected (${blobs[0].n}px)` : 'no laser'} · ${state.H ? 'calibrated' : 'NOT calibrated'}${state.menu.open ? ' · MENU' : ''} · ${state.fps.toFixed(0)} fps`);
+    const calibrated = state.H && !state.calDefault;
+    if (det) status(`Laser at cam (${det.x.toFixed(0)},${det.y.toFixed(0)}) ${det.n}px${extra}${calibrated ? '' : ' — not calibrated'}${state.menu.open ? ' · MENU' : ''} · ${state.fps.toFixed(0)} fps`);
+    else status(`${blobs.length ? `blob rejected (${blobs[0].n}px)` : 'no laser'} · ${calibrated ? 'calibrated' : 'NOT calibrated — drag the corners'}${state.menu.open ? ' · MENU' : ''} · ${state.fps.toFixed(0)} fps`);
   }
   if (document.visibilityState !== 'visible') status('⚠ Control window hidden — Chrome throttles it. Keep this window visible (it can be small).');
   drawPreview();
@@ -478,10 +480,10 @@ function drawPreview() {
   if (params.showMask) pctx.drawImage(maskCanvas, ox, oy, dw, dh);
   preview._map = { ox, oy, dw, dh };
   if (state.camCorners) {
-    pctx.strokeStyle = '#ff0'; pctx.lineWidth = 2; pctx.beginPath();
+    pctx.strokeStyle = '#ff0'; pctx.lineWidth = 2; pctx.setLineDash(state.calDefault ? [8, 6] : []); pctx.beginPath();
     state.camCorners.forEach((c, i) => pctx[i ? 'lineTo' : 'moveTo'](ox + c.x * dw, oy + c.y * dh));
-    pctx.closePath(); pctx.stroke();
-    for (const c of state.camCorners) { pctx.fillStyle = '#ff0'; pctx.beginPath(); pctx.arc(ox + c.x * dw, oy + c.y * dh, 7, 0, 7); pctx.fill(); }
+    pctx.closePath(); pctx.stroke(); pctx.setLineDash([]);
+    state.camCorners.forEach((c, i) => drawCornerMarker(pctx, ox + c.x * dw, oy + c.y * dh, i, i === dragIdx ? 16 : 12));
   }
   for (const b of state.blobs) {
     const chosen = b === state.lastDet && b.ok;
@@ -501,21 +503,41 @@ function drawPreview() {
 }
 
 // ---------- manual corner dragging ----------
-let dragIdx = -1;
-preview.addEventListener('pointerdown', e => {
-  if (!state.camCorners || !preview._map) return;
+let dragIdx = -1, dragMoved = false, dragOverlay = false;
+/** Index of the corner marker under the pointer (nearest within reach), or -1. */
+function cornerAt(e) {
+  if (!state.camCorners || !preview._map) return -1;
   const { ox, oy, dw, dh } = preview._map;
-  const x = (e.offsetX - ox) / dw, y = (e.offsetY - oy) / dh;
-  dragIdx = state.camCorners.findIndex(c => Math.hypot((c.x - x) * dw, (c.y - y) * dh) < 14);
-  if (dragIdx >= 0) preview.setPointerCapture(e.pointerId);
+  let best = -1, bestD = 20;
+  state.camCorners.forEach((c, i) => { const d = Math.hypot(ox + c.x * dw - e.offsetX, oy + c.y * dh - e.offsetY); if (d < bestD) { bestD = d; best = i; } });
+  return best;
+}
+preview.addEventListener('pointerdown', e => {
+  dragIdx = cornerAt(e);
+  if (dragIdx < 0) return;
+  preview.setPointerCapture(e.pointerId);
+  preview.style.cursor = 'grabbing';
+  dragMoved = false;
+  dragOverlay = !state.calibrating && !state.laserCal;            // don't clobber the projector's calibration overlays
+  if (dragOverlay) send({ t: 'cal', kind: 'corners' });           // projector shows the matching corner markers
 });
 preview.addEventListener('pointermove', e => {
-  if (dragIdx < 0) return;
+  if (dragIdx < 0) { preview.style.cursor = cornerAt(e) >= 0 ? 'grab' : ''; return; }
   const { ox, oy, dw, dh } = preview._map;
-  state.camCorners[dragIdx] = { x: (e.offsetX - ox) / dw, y: (e.offsetY - oy) / dh };
-  setHomography(computeHomography(state.camCorners, CORNERS), state.camCorners);
+  const corners = state.camCorners.slice();
+  corners[dragIdx] = { x: (e.offsetX - ox) / dw, y: (e.offsetY - oy) / dh };
+  try { setHomography(computeHomography(corners, CORNERS), corners); dragMoved = true; } catch {}   // degenerate quad mid-drag: keep the last valid one
 });
-preview.addEventListener('pointerup', () => { if (dragIdx >= 0) { dragIdx = -1; saveCal(); log('calibration adjusted manually'); } });
+function endDrag() {
+  if (dragIdx < 0) return;
+  dragIdx = -1; preview.style.cursor = '';
+  if (dragOverlay) send({ t: 'cal', kind: 'off' });
+  if (!dragMoved) return;                                         // a plain click must not count as calibration
+  state.calDefault = false;
+  saveCal(); $('calInfo').textContent = 'Corners adjusted manually.'; log('calibration adjusted manually');
+}
+preview.addEventListener('pointerup', endDrag);
+preview.addEventListener('pointercancel', endDrag);
 
 // ---------- projector calibration ----------
 function setHomography(H, camCorners) {
@@ -573,10 +595,18 @@ function saveCal() { localStorage.setItem('lg:cal', JSON.stringify(state.camCorn
 function loadCal() {
   try {
     const c = JSON.parse(localStorage.getItem('lg:cal'));
-    if (c?.length === 4) { setHomography(computeHomography(c, CORNERS), c); $('calInfo').textContent = 'Loaded saved calibration.'; }
+    if (c?.length === 4) { setHomography(computeHomography(c, CORNERS), c); state.calDefault = false; $('calInfo').textContent = 'Loaded saved calibration.'; return; }
   } catch {}
+  defaultCal();
 }
-$('calReset').onclick = () => { state.H = state.Hinv = state.camCorners = state.roi = null; localStorage.removeItem('lg:cal'); $('calInfo').textContent = 'Calibration cleared.'; };
+/** Corners are always there to drag: start from a centered rectangle until calibrated. */
+function defaultCal() {
+  const c = DEFAULT_CAM_CORNERS.map(p => ({ ...p }));
+  setHomography(computeHomography(c, CORNERS), c);
+  state.calDefault = true;
+  $('calInfo').textContent = 'Default corners — drag them onto the corners of the projection, or run Calibrate projector.';
+}
+$('calReset').onclick = () => { localStorage.removeItem('lg:cal'); defaultCal(); log('calibration reset to default corners'); };
 
 function grabGray() {
   const w = proc.width, h = proc.height, d = pctxProc.getImageData(0, 0, w, h).data;
@@ -642,7 +672,8 @@ $('calBtn').onclick = async () => {
     let err = 0;
     for (let i = 0; i < cam.length; i++) { const p = applyHomography(H, cam[i].x, cam[i].y); err += Math.hypot(p.x - prj[i].x, p.y - prj[i].y); }
     err /= cam.length;
-    setHomography(H);
+    setHomography(H);             // moves the corner markers to where the projection was found
+    state.calDefault = false;
     saveCal();
     $('calInfo').textContent = `Projector calibrated with ${cam.length} points, mean error ${(err * 100).toFixed(2)}%.`;
     log(`calibration OK: ${cam.length} pts, err ${(err * 100).toFixed(2)}%`);

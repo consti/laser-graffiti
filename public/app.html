@@ -74,7 +74,10 @@
         <button id="laserCalBtn" class="primary">Calibrate laser</button>
         <button id="calReset">Reset</button>
       </div>
-      <div class="hint"><b>Projector:</b> flashes markers into the corners; drag the yellow corners afterwards to fine-tune.
+      <div class="hint"><b>Corners</b> of the projection are always shown in the camera view — <span style="color:#ff4040">TL</span>,
+        <span style="color:#40ff40">TR</span>, <span style="color:#4080ff">BR</span>, <span style="color:#ffe000">BL</span>; the missing quarter of each dot points into the screen.
+        Drag them onto the projection's corners (the projector shows the matching markers while you drag).
+        <b>Projector:</b> flashes markers to find the corners automatically; if it succeeds, the corners move there.
         <b>Laser:</b> after a 3 s countdown (shown on the projector), wave the laser around inside the projection for 4 s — thresholds and dot size are learned from it. <span id="calInfo"></span></div>
     </fieldset>
 

@@ -113,6 +113,29 @@ export function inHotCorner(p, aspect, corner = 'tr') {
   return dx * dx + dy * dy <= hc.r * hc.r;
 }
 
+// ---------- projector corner markers (TL, TR, BR, BL — same order as the calibration corners) ----------
+export const CORNER_NAMES = ['TL', 'TR', 'BR', 'BL'];
+export const CORNER_COLORS = ['#ff4040', '#40ff40', '#4080ff', '#ffe000'];
+/**
+ * 3/4 disk whose missing quarter points into the screen (TL misses bottom-right, …); the notch tip is at (x, y).
+ * Colour and orientation tell the corners apart.
+ */
+export function drawCornerMarker(ctx, x, y, idx, r, { label = true, labelInside = false, outline = '#fff' } = {}) {
+  const m = idx * Math.PI / 2;                     // start angle of the missing quarter (canvas angles, y down)
+  ctx.save();
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, r, m + Math.PI / 2, m + 2 * Math.PI); ctx.closePath();
+  ctx.fillStyle = CORNER_COLORS[idx]; ctx.fill();
+  if (outline) { ctx.lineWidth = Math.max(1, r / 7); ctx.strokeStyle = outline; ctx.stroke(); }
+  if (label) {
+    const a = m + Math.PI / 4 + (labelInside ? 0 : Math.PI), d = r * 1.75;   // default: opposite the missing quarter, outside the screen
+    const lx = x + Math.cos(a) * d, ly = y + Math.sin(a) * d;
+    ctx.font = `bold ${Math.round(r * 0.9)}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.lineWidth = 3; ctx.strokeStyle = '#000'; ctx.strokeText(CORNER_NAMES[idx], lx, ly);
+    ctx.fillStyle = CORNER_COLORS[idx]; ctx.fillText(CORNER_NAMES[idx], lx, ly);
+  }
+  ctx.restore();
+}
+
 // ---------- stroke rendering ----------
 // stroke: {id, color, brush, size, symmetry, pts:[{x,y}], lastT}
 const rnd = (i, k) => { const s = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453; return s - Math.floor(s); };

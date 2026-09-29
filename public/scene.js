@@ -1,5 +1,5 @@
 // Scene: the drawing surface renderer shared by the projector window, the landing-page demo and snapshots.
-import { DEFAULT_SETTINGS, hotCorner, menuLayout, drawStroke, withSymmetry, boardGeometry, smoothPts } from './shared.js';
+import { DEFAULT_SETTINGS, hotCorner, menuLayout, drawStroke, withSymmetry, boardGeometry, smoothPts, drawCornerMarker } from './shared.js';
 
 const rnd01 = (i, k) => { const s = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453; return s - Math.floor(s); };
 
@@ -79,6 +79,12 @@ export class Scene {
     ctx.globalAlpha = 1; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h);
     if (this.cal && !plain) {
       if (this.cal.kind === 'marker') { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(this.cal.x * w, this.cal.y * h, this.cal.r * w, 0, 7); ctx.fill(); }
+      if (this.cal.kind === 'corners') {           // manual corner dragging: show which projector corner is which
+        const r = 0.07 * h, lw = Math.max(2, 0.006 * h);
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = lw; ctx.strokeRect(lw / 2, lw / 2, w - lw, h - lw);
+        // disk bounding box touches the screen corner; the notch points into the screen like in the camera view
+        [[r, r], [w - r, r], [w - r, h - r], [r, h - r]].forEach(([x, y], i) => drawCornerMarker(ctx, x, y, i, r, { labelInside: true }));
+      }
       if (this.cal.kind === 'text') {
         ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         if (this.cal.big) { ctx.font = `bold ${Math.round(0.35 * h)}px system-ui, sans-serif`; ctx.fillText(this.cal.big, w / 2, h * 0.45); }
